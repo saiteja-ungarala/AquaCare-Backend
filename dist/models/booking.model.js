@@ -1,0 +1,59 @@
+"use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.BookingModel = void 0;
+const db_1 = __importDefault(require("../config/db"));
+const constants_1 = require("../config/constants");
+exports.BookingModel = {
+    create(data) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const [result] = yield db_1.default.query(`INSERT INTO bookings (user_id, service_id, address_id, scheduled_date, scheduled_time, status, price, notes) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [
+                data.user_id, data.service_id, data.address_id || null, data.scheduled_date, data.scheduled_time,
+                data.status || constants_1.BOOKING_STATUS.PENDING, data.price, data.notes || null
+            ]);
+            return result.insertId;
+        });
+    },
+    findByUser(userId_1) {
+        return __awaiter(this, arguments, void 0, function* (userId, limit = 20, offset = 0) {
+            const [countRows] = yield db_1.default.query('SELECT COUNT(*) as total FROM bookings WHERE user_id = ?', [userId]);
+            const total = countRows[0].total;
+            const query = `
+      SELECT b.*, s.name as service_name, s.image_url as service_image 
+      FROM bookings b
+      JOIN services s ON b.service_id = s.id
+      WHERE b.user_id = ? 
+      ORDER BY b.created_at DESC 
+      LIMIT ? OFFSET ?
+    `;
+            const [rows] = yield db_1.default.query(query, [userId, limit, offset]);
+            return { bookings: rows, total };
+        });
+    },
+    findById(id) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const [rows] = yield db_1.default.query(`SELECT b.*, s.name as service_name, s.duration_minutes 
+         FROM bookings b
+         JOIN services s ON b.service_id = s.id
+         WHERE b.id = ?`, [id]);
+            return rows[0] || null;
+        });
+    },
+    updateStatus(id, status) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield db_1.default.query('UPDATE bookings SET status = ? WHERE id = ?', [status, id]);
+        });
+    }
+};

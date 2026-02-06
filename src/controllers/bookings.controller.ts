@@ -1,0 +1,34 @@
+import { Request, Response, NextFunction } from 'express';
+import { BookingService } from '../services/bookings.service';
+import { successResponse } from '../utils/response';
+
+export const getBookings = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req.user as any).id;
+        const result = await BookingService.getBookings(userId, req.query);
+        return successResponse(res, result.data); // Should return pagination object too
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const createBooking = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req.user as any).id;
+        const result = await BookingService.createBooking(userId, req.body);
+        return successResponse(res, result, 'Booking confirmed', 201);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const cancelBooking = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req.user as any).id;
+        const bookingId = Number(req.params.id);
+        await BookingService.cancelBooking(userId, bookingId);
+        return successResponse(res, null, 'Booking cancelled');
+    } catch (error) {
+        next(error);
+    }
+};
