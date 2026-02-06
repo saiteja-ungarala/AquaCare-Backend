@@ -5,9 +5,9 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 export const env = {
     PORT: process.env.PORT || 3000,
-    DB_HOST: process.env.DB_HOST || 'localhost',
+    DB_HOST: process.env.DB_HOST || '127.0.0.1',
     DB_USER: process.env.DB_USER || 'root',
-    DB_PASSWORD: process.env.DB_PASSWORD || 'password',
+    DB_PASSWORD: process.env.DB_PASSWORD || 'ROOT',
     DB_NAME: process.env.DB_NAME || 'aquacare',
     JWT_SECRET: process.env.JWT_SECRET || 'supersecretkey',
     JWT_ACCESS_EXPIRY: process.env.JWT_ACCESS_EXPIRY || '15m',
