@@ -3,13 +3,12 @@ import { env } from './env';
 
 const pool: Pool = mysql.createPool({
     host: env.DB_HOST,
+    port: Number(process.env.DB_PORT || 3306), // <-- add this
     user: env.DB_USER,
     password: env.DB_PASSWORD,
     database: env.DB_NAME,
     waitForConnections: true,
     connectionLimit: 10,
-    maxIdle: 10,
-    idleTimeout: 60000,
     queueLimit: 0,
 });
 

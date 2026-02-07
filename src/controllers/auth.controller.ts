@@ -46,3 +46,16 @@ export const me = async (req: Request, res: Response, next: NextFunction) => {
     // User is attached to req by auth middleware
     return successResponse(res, { user: req.user });
 };
+
+export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { email } = req.body;
+        // Log the request for future email integration
+        console.log(`[Auth] Password reset requested for: ${email}`);
+
+        // Always return success for security (don't leak which emails exist)
+        return successResponse(res, null, 'If this email exists, we sent reset instructions.');
+    } catch (error) {
+        next(error);
+    }
+};

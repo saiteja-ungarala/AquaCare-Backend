@@ -20,8 +20,16 @@ export const AuthService = {
 
     async login(email: string, password: string): Promise<any> {
         const user = await UserModel.findByEmail(email);
-        if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-            throw { type: 'AppError', message: 'Invalid credentials', statusCode: 401 };
+
+        // User not found - return 404
+        if (!user) {
+            throw { type: 'AppError', message: 'User not found', statusCode: 404 };
+        }
+
+        // Wrong password - return 401
+        const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+        if (!isPasswordValid) {
+            throw { type: 'AppError', message: 'Invalid password', statusCode: 401 };
         }
 
         const tokens = await this.generateTokens(user);
