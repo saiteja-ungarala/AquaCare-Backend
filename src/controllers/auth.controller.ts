@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '../services/auth.service';
+import { UserModel } from '../models/user.model';
+import { WalletModel } from '../models/wallet.model';
 import { successResponse } from '../utils/response';
 
 export const signup = async (req: Request, res: Response, next: NextFunction) => {
@@ -43,8 +45,32 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
 };
 
 export const me = async (req: Request, res: Response, next: NextFunction) => {
-    // User is attached to req by auth middleware
-    return successResponse(res, { user: req.user });
+    try {
+        const userId = (req.user as any).id;
+
+        // Fetch full user from DB
+        const user = await UserModel.findById(userId);
+        if (!user) {
+            throw { type: 'AppError', message: 'User not found', statusCode: 404 };
+        }
+
+        // Ensure wallet exists for user
+        await WalletModel.createWallet(userId);
+
+        // Return sanitized user with camelCase fields
+        const sanitizedUser = {
+            id: user.id,
+            fullName: user.full_name,
+            email: user.email,
+            phone: user.phone || null,
+            role: user.role,
+            referralCode: (user as any).referral_code || null,
+        };
+
+        return successResponse(res, { user: sanitizedUser });
+    } catch (error) {
+        next(error);
+    }
 };
 
 export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {

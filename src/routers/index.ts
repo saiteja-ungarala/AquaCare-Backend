@@ -6,6 +6,7 @@ import BookingRoutes from './bookings.routes';
 import OrderRoutes from './orders.routes';
 import WalletRoutes from './wallet.routes';
 import ProfileRoutes from './profile.routes';
+import StoreRoutes from './store.routes';
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use('/bookings', BookingRoutes);
 router.use('/orders', OrderRoutes);
 router.use('/wallet', WalletRoutes);
 router.use('/user', ProfileRoutes);
+router.use('/store', StoreRoutes);
 
 export default router;

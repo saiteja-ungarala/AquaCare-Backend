@@ -110,15 +110,15 @@ export const OrderService = {
                 await connection.query('UPDATE wallet_transactions SET reference_id = ? WHERE reference_type = "order" AND reference_id IS NULL AND user_id = ? ORDER BY id DESC LIMIT 1', [orderId, userId]);
             }
 
-            // Close Cart (Mark product items as processed or close cart? 
-            // Strategy: We will clone items to order, and clear them from cart or close cart. 
-            // Since schema says ONE open cart per user, we should probably clear product items or close cart.)
-            // Let's close the cart for simplicity as V1
-            await connection.query('UPDATE carts SET status = ? WHERE id = ?', ['checked_out', cart.id]);
+            // Clear ONLY product items from cart (keep service items for bookings)
+            await connection.query(
+                `DELETE FROM cart_items WHERE cart_id = ? AND item_type = 'product'`,
+                [cart.id]
+            );
 
             await connection.commit();
 
-            return { orderId, totalAmount, status: 'pending' };
+            return { orderId, totalAmount, status: 'pending', paymentStatus: data.payment_method === 'wallet' ? 'paid' : 'pending' };
 
         } catch (error) {
             await connection.rollback();

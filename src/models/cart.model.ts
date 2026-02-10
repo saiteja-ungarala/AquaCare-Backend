@@ -101,5 +101,12 @@ export const CartModel = {
             [itemId, userId]
         );
         return rows.length > 0;
+    },
+
+    async clearProductItems(cartId: number): Promise<void> {
+        await pool.query(
+            `DELETE FROM cart_items WHERE cart_id = ? AND item_type = 'product'`,
+            [cartId]
+        );
     }
 };
