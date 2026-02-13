@@ -8,7 +8,7 @@ export const signup = async (req: Request, res: Response, next: NextFunction) =>
     try {
         const result = await AuthService.signup({
             ...req.body,
-            password_hash: req.body.password // Temporarily map password
+            password_hash: req.body.password
         });
         return successResponse(res, result, 'User created successfully', 201);
     } catch (error) {
