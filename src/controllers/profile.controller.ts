@@ -63,3 +63,14 @@ export const deleteAddress = async (req: Request, res: Response, next: NextFunct
         next(error);
     }
 };
+
+export const setAddressDefault = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req.user as any).id;
+        const addressId = Number(req.params.id);
+        const result = await ProfileService.setAddressDefault(userId, addressId);
+        return successResponse(res, result, 'Default address updated');
+    } catch (error) {
+        next(error);
+    }
+};

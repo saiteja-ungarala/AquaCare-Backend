@@ -1,6 +1,14 @@
 import { BookingModel } from '../models/booking.model';
 import { ServiceModel } from '../models/service.model';
 import { AddressModel } from '../models/address.model';
+import { BOOKING_STATUS } from '../config/constants';
+
+// Map status query param to actual DB status values
+const STATUS_MAP: Record<string, string[]> = {
+    active: [BOOKING_STATUS.PENDING, BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.ASSIGNED, BOOKING_STATUS.IN_PROGRESS],
+    completed: [BOOKING_STATUS.COMPLETED],
+    cancelled: [BOOKING_STATUS.CANCELLED],
+};
 
 export const BookingService = {
     async getBookings(userId: number, query: any) {
@@ -8,7 +16,11 @@ export const BookingService = {
         const limit = parseInt(query.pageSize as string) || 20;
         const offset = (page - 1) * limit;
 
-        const { bookings, total } = await BookingModel.findByUser(userId, limit, offset);
+        // Resolve status filter
+        const statusParam = (query.status as string || '').toLowerCase();
+        const statusList = STATUS_MAP[statusParam] || undefined;
+
+        const { bookings, total } = await BookingModel.findByUser(userId, limit, offset, statusList);
 
         return {
             data: bookings,

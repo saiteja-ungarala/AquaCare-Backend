@@ -13,7 +13,8 @@ router.patch('/profile', ProfileController.updateProfile);
 
 router.get('/addresses', ProfileController.getAddresses);
 router.post('/addresses', validate(AddressSchema), ProfileController.addAddress);
-router.patch('/addresses/:id', ProfileController.updateAddress); // Partial update allowed via schema later or lenient
+router.patch('/addresses/:id/default', ProfileController.setAddressDefault);
+router.patch('/addresses/:id', ProfileController.updateAddress);
 router.delete('/addresses/:id', ProfileController.deleteAddress);
 
 export default router;

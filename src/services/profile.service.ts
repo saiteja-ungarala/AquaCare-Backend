@@ -1,4 +1,4 @@
-import { UserModel, User } from '../models/user.model';
+import { UserModel, User, generateReferralCode } from '../models/user.model';
 import { AddressModel, Address } from '../models/address.model';
 
 export const ProfileService = {
@@ -6,12 +6,28 @@ export const ProfileService = {
         const user = await UserModel.findById(userId);
         if (!user) throw { type: 'AppError', message: 'User not found', statusCode: 404 };
 
+        // Auto-generate referral code for legacy users who don't have one
+        if (!user.referral_code) {
+            const code = generateReferralCode();
+            await UserModel.update(userId, { referral_code: code } as Partial<User>);
+            user.referral_code = code;
+        }
+
         const { password_hash, ...rest } = user;
         return rest;
     },
 
     async updateProfile(userId: number, data: Partial<User>) {
-        await UserModel.update(userId, data);
+        // Whitelist only allowed fields
+        const allowed: Partial<User> = {};
+        if (data.full_name !== undefined) allowed.full_name = data.full_name;
+        if (data.phone !== undefined) allowed.phone = data.phone;
+
+        if (Object.keys(allowed).length === 0) {
+            throw { type: 'AppError', message: 'No valid fields to update', statusCode: 400 };
+        }
+
+        await UserModel.update(userId, allowed);
         return this.getProfile(userId);
     },
 
@@ -51,5 +67,14 @@ export const ProfileService = {
             throw { type: 'AppError', message: 'Address not found or unauthorized', statusCode: 404 };
         }
         await AddressModel.delete(addressId);
+    },
+
+    async setAddressDefault(userId: number, addressId: number) {
+        const existing = await AddressModel.findById(addressId);
+        if (!existing || existing.user_id !== userId) {
+            throw { type: 'AppError', message: 'Address not found', statusCode: 404 };
+        }
+        await AddressModel.setDefault(userId, addressId);
+        return AddressModel.findAll(userId);
     }
 };

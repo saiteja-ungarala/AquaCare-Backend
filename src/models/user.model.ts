@@ -1,5 +1,6 @@
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
+import crypto from 'crypto';
 
 export interface User {
     id?: number;
@@ -8,16 +9,29 @@ export interface User {
     email: string;
     phone?: string;
     password_hash: string;
+    referral_code?: string;
+    referred_by?: number;
     is_active?: boolean;
     created_at?: Date;
     updated_at?: Date;
 }
 
+/** Generate a unique referral code like AQ1X3K7P */
+export function generateReferralCode(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
+    let code = 'AQ';
+    for (let i = 0; i < 6; i++) {
+        code += chars[crypto.randomInt(chars.length)];
+    }
+    return code;
+}
+
 export const UserModel = {
     async create(user: User): Promise<number> {
+        const referralCode = user.referral_code || generateReferralCode();
         const [result] = await pool.query<ResultSetHeader>(
-            `INSERT INTO users (role, full_name, email, phone, password_hash) VALUES (?, ?, ?, ?, ?)`,
-            [user.role, user.full_name, user.email, user.phone, user.password_hash]
+            `INSERT INTO users (role, full_name, email, phone, password_hash, referral_code, referred_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [user.role, user.full_name, user.email, user.phone, user.password_hash, referralCode, user.referred_by || null]
         );
         return result.insertId;
     },
