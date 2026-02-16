@@ -45,8 +45,14 @@ exports.AuthService = {
     login(email, password) {
         return __awaiter(this, void 0, void 0, function* () {
             const user = yield user_model_1.UserModel.findByEmail(email);
-            if (!user || !(yield bcrypt_1.default.compare(password, user.password_hash))) {
-                throw { type: 'AppError', message: 'Invalid credentials', statusCode: 401 };
+            // User not found - return 404
+            if (!user) {
+                throw { type: 'AppError', message: 'User not found', statusCode: 404 };
+            }
+            // Wrong password - return 401
+            const isPasswordValid = yield bcrypt_1.default.compare(password, user.password_hash);
+            if (!isPasswordValid) {
+                throw { type: 'AppError', message: 'Invalid password', statusCode: 401 };
             }
             const tokens = yield this.generateTokens(user);
             return Object.assign({ user: this.sanitizeUser(user) }, tokens);

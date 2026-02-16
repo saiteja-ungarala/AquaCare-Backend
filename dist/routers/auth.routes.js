@@ -43,5 +43,6 @@ router.post('/signup', (0, validate_middleware_1.validate)(auth_dto_1.SignupSche
 router.post('/login', (0, validate_middleware_1.validate)(auth_dto_1.LoginSchema), AuthController.login);
 router.post('/refresh', (0, validate_middleware_1.validate)(auth_dto_1.RefreshSchema), AuthController.refresh);
 router.post('/logout', auth_middleware_1.authenticate, AuthController.logout);
+router.post('/forgot-password', AuthController.forgotPassword);
 router.get('/me', auth_middleware_1.authenticate, AuthController.me);
 exports.default = router;

@@ -7,13 +7,12 @@ const promise_1 = __importDefault(require("mysql2/promise"));
 const env_1 = require("./env");
 const pool = promise_1.default.createPool({
     host: env_1.env.DB_HOST,
+    port: Number(process.env.DB_PORT || 3306),
     user: env_1.env.DB_USER,
     password: env_1.env.DB_PASSWORD,
     database: env_1.env.DB_NAME,
     waitForConnections: true,
     connectionLimit: 10,
-    maxIdle: 10,
-    idleTimeout: 60000,
     queueLimit: 0,
 });
 pool.getConnection()

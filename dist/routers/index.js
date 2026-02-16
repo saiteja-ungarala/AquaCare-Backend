@@ -11,12 +11,16 @@ const bookings_routes_1 = __importDefault(require("./bookings.routes"));
 const orders_routes_1 = __importDefault(require("./orders.routes"));
 const wallet_routes_1 = __importDefault(require("./wallet.routes"));
 const profile_routes_1 = __importDefault(require("./profile.routes"));
+const store_routes_1 = __importDefault(require("./store.routes"));
+const agent_routes_1 = __importDefault(require("./agent.routes"));
 const router = (0, express_1.Router)();
 router.use('/auth', auth_routes_1.default);
-router.use('/', catalog_routes_1.default); // /services, /products are root level in spec but grouped in catalog
+router.use('/', catalog_routes_1.default); // legacy customer catalog: /services and lightweight /products
 router.use('/cart', cart_routes_1.default);
 router.use('/bookings', bookings_routes_1.default);
 router.use('/orders', orders_routes_1.default);
 router.use('/wallet', wallet_routes_1.default);
 router.use('/user', profile_routes_1.default);
+router.use('/store', store_routes_1.default); // store commerce domain: categories + advanced product listing/detail
+router.use('/agent', agent_routes_1.default);
 exports.default = router;

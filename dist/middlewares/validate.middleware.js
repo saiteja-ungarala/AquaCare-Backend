@@ -5,11 +5,15 @@ const zod_1 = require("zod");
 const response_1 = require("../utils/response");
 const validate = (schema) => (req, res, next) => {
     try {
-        schema.parse({
+        const parsed = schema.parse({
             body: req.body,
             query: req.query,
             params: req.params,
         });
+        // Apply transforms back to request
+        req.body = parsed.body;
+        req.query = parsed.query || req.query;
+        req.params = parsed.params || req.params;
         next();
     }
     catch (error) {

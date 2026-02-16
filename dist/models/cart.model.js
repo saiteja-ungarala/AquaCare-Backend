@@ -87,5 +87,10 @@ exports.CartModel = {
            WHERE ci.id = ? AND c.user_id = ?`, [itemId, userId]);
             return rows.length > 0;
         });
+    },
+    clearProductItems(cartId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield db_1.default.query(`DELETE FROM cart_items WHERE cart_id = ? AND item_type = 'product'`, [cartId]);
+        });
     }
 };

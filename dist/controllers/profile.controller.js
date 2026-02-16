@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteAddress = exports.updateAddress = exports.addAddress = exports.getAddresses = exports.updateProfile = exports.getProfile = void 0;
+exports.setAddressDefault = exports.deleteAddress = exports.updateAddress = exports.addAddress = exports.getAddresses = exports.updateProfile = exports.getProfile = void 0;
 const profile_service_1 = require("../services/profile.service");
 const response_1 = require("../utils/response");
 const getProfile = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
@@ -80,3 +80,15 @@ const deleteAddress = (req, res, next) => __awaiter(void 0, void 0, void 0, func
     }
 });
 exports.deleteAddress = deleteAddress;
+const setAddressDefault = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const userId = req.user.id;
+        const addressId = Number(req.params.id);
+        const result = yield profile_service_1.ProfileService.setAddressDefault(userId, addressId);
+        return (0, response_1.successResponse)(res, result, 'Default address updated');
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.setAddressDefault = setAddressDefault;

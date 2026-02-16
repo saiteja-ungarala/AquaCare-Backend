@@ -9,13 +9,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.me = exports.logout = exports.refresh = exports.login = exports.signup = void 0;
+exports.forgotPassword = exports.me = exports.logout = exports.refresh = exports.login = exports.signup = void 0;
 const auth_service_1 = require("../services/auth.service");
+const user_model_1 = require("../models/user.model");
+const wallet_model_1 = require("../models/wallet.model");
 const response_1 = require("../utils/response");
 const signup = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const result = yield auth_service_1.AuthService.signup(Object.assign(Object.assign({}, req.body), { password_hash: req.body.password // Temporarily map password
-         }));
+        const result = yield auth_service_1.AuthService.signup(Object.assign(Object.assign({}, req.body), { password_hash: req.body.password }));
         return (0, response_1.successResponse)(res, result, 'User created successfully', 201);
     }
     catch (error) {
@@ -55,7 +56,41 @@ const logout = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
 });
 exports.logout = logout;
 const me = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    // User is attached to req by auth middleware
-    return (0, response_1.successResponse)(res, { user: req.user });
+    try {
+        const userId = req.user.id;
+        // Fetch full user from DB
+        const user = yield user_model_1.UserModel.findById(userId);
+        if (!user) {
+            throw { type: 'AppError', message: 'User not found', statusCode: 404 };
+        }
+        // Ensure wallet exists for user
+        yield wallet_model_1.WalletModel.createWallet(userId);
+        // Return sanitized user with camelCase fields
+        const sanitizedUser = {
+            id: user.id,
+            fullName: user.full_name,
+            email: user.email,
+            phone: user.phone || null,
+            role: user.role,
+            referralCode: user.referral_code || null,
+        };
+        return (0, response_1.successResponse)(res, { user: sanitizedUser });
+    }
+    catch (error) {
+        next(error);
+    }
 });
 exports.me = me;
+const forgotPassword = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email } = req.body;
+        // Log the request for future email integration
+        console.log(`[Auth] Password reset requested for: ${email}`);
+        // Always return success for security (don't leak which emails exist)
+        return (0, response_1.successResponse)(res, null, 'If this email exists, we sent reset instructions.');
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.forgotPassword = forgotPassword;

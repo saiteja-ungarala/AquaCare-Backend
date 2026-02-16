@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validate.middleware';
-import { AddressSchema } from '../dto/address.dto';
+import { AddressSchema, UpdateAddressSchema } from '../dto/address.dto';
 import * as ProfileController from '../controllers/profile.controller';
 
 const router = Router();
@@ -14,7 +14,7 @@ router.patch('/profile', ProfileController.updateProfile);
 router.get('/addresses', ProfileController.getAddresses);
 router.post('/addresses', validate(AddressSchema), ProfileController.addAddress);
 router.patch('/addresses/:id/default', ProfileController.setAddressDefault);
-router.patch('/addresses/:id', ProfileController.updateAddress);
+router.patch('/addresses/:id', validate(UpdateAddressSchema), ProfileController.updateAddress);
 router.delete('/addresses/:id', ProfileController.deleteAddress);
 
 export default router;

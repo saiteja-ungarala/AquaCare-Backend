@@ -29,13 +29,28 @@ exports.ProfileService = {
             const user = yield user_model_1.UserModel.findById(userId);
             if (!user)
                 throw { type: 'AppError', message: 'User not found', statusCode: 404 };
+            // Auto-generate referral code for legacy users who don't have one
+            if (!user.referral_code) {
+                const code = (0, user_model_1.generateReferralCode)();
+                yield user_model_1.UserModel.update(userId, { referral_code: code });
+                user.referral_code = code;
+            }
             const { password_hash } = user, rest = __rest(user, ["password_hash"]);
             return rest;
         });
     },
     updateProfile(userId, data) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield user_model_1.UserModel.update(userId, data);
+            // Whitelist only allowed fields
+            const allowed = {};
+            if (data.full_name !== undefined)
+                allowed.full_name = data.full_name;
+            if (data.phone !== undefined)
+                allowed.phone = data.phone;
+            if (Object.keys(allowed).length === 0) {
+                throw { type: 'AppError', message: 'No valid fields to update', statusCode: 400 };
+            }
+            yield user_model_1.UserModel.update(userId, allowed);
             return this.getProfile(userId);
         });
     },
@@ -60,8 +75,32 @@ exports.ProfileService = {
             if (!existing || existing.user_id !== userId) {
                 throw { type: 'AppError', message: 'Address not found', statusCode: 404 };
             }
-            yield address_model_1.AddressModel.update(addressId, data);
-            if (data.is_default) {
+            const allowed = {};
+            if (data.label !== undefined)
+                allowed.label = data.label;
+            if (data.line1 !== undefined)
+                allowed.line1 = data.line1;
+            if (data.line2 !== undefined)
+                allowed.line2 = data.line2;
+            if (data.city !== undefined)
+                allowed.city = data.city;
+            if (data.state !== undefined)
+                allowed.state = data.state;
+            if (data.postal_code !== undefined)
+                allowed.postal_code = data.postal_code;
+            if (data.country !== undefined)
+                allowed.country = data.country;
+            if (data.latitude !== undefined)
+                allowed.latitude = data.latitude;
+            if (data.longitude !== undefined)
+                allowed.longitude = data.longitude;
+            if (data.is_default !== undefined)
+                allowed.is_default = data.is_default;
+            if (Object.keys(allowed).length === 0) {
+                throw { type: 'AppError', message: 'No valid fields to update', statusCode: 400 };
+            }
+            yield address_model_1.AddressModel.update(addressId, allowed);
+            if (allowed.is_default) {
                 yield address_model_1.AddressModel.setDefault(userId, addressId);
             }
             return address_model_1.AddressModel.findById(addressId);
@@ -74,6 +113,16 @@ exports.ProfileService = {
                 throw { type: 'AppError', message: 'Address not found or unauthorized', statusCode: 404 };
             }
             yield address_model_1.AddressModel.delete(addressId);
+        });
+    },
+    setAddressDefault(userId, addressId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const existing = yield address_model_1.AddressModel.findById(addressId);
+            if (!existing || existing.user_id !== userId) {
+                throw { type: 'AppError', message: 'Address not found', statusCode: 404 };
+            }
+            yield address_model_1.AddressModel.setDefault(userId, addressId);
+            return address_model_1.AddressModel.findAll(userId);
         });
     }
 };

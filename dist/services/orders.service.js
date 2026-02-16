@@ -19,6 +19,7 @@ const cart_model_1 = require("../models/cart.model");
 const address_model_1 = require("../models/address.model");
 const wallet_model_1 = require("../models/wallet.model");
 const constants_1 = require("../config/constants");
+const referralCommission_service_1 = require("./referralCommission.service");
 exports.OrderService = {
     getOrders(userId, query) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -78,10 +79,16 @@ exports.OrderService = {
             }
             const deliveryFee = subtotal > 500 ? 0 : 50; // Simple rule
             const totalAmount = subtotal + deliveryFee;
+            const normalizedReferralCode = referralCommission_service_1.ReferralCommissionService.normalizeReferralCode(data.referral_code);
+            const validReferralCode = referralCommission_service_1.ReferralCommissionService.isValidReferralCodeFormat(normalizedReferralCode)
+                ? normalizedReferralCode
+                : null;
             // 4. Create Order Transaction
             const connection = yield db_1.default.getConnection();
             try {
                 yield connection.beginTransaction();
+                const referredByAgentId = yield referralCommission_service_1.ReferralCommissionService.findAgentIdByReferralCode(connection, validReferralCode);
+                const referralCodeUsed = referredByAgentId ? validReferralCode : null;
                 // Check Wallet if needed
                 if (data.payment_method === 'wallet') {
                     const balance = yield wallet_model_1.WalletModel.getBalance(userId);
@@ -94,27 +101,36 @@ exports.OrderService = {
                     yield connection.query('UPDATE wallets SET balance = balance - ? WHERE user_id = ?', [totalAmount, userId]);
                 }
                 // Create Order
-                const [orderResult] = yield connection.query(`INSERT INTO orders (user_id, address_id, status, payment_status, subtotal, delivery_fee, total_amount) 
-           VALUES (?, ?, ?, ?, ?, ?, ?)`, [
+                const [orderResult] = yield connection.query(`INSERT INTO orders (user_id, address_id, status, payment_status, subtotal, delivery_fee, total_amount, referred_by_agent_id, referral_code_used) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
                     userId, data.address_id, constants_1.ORDER_STATUS.PENDING,
                     data.payment_method === 'wallet' ? 'paid' : 'pending',
-                    subtotal, deliveryFee, totalAmount
+                    subtotal, deliveryFee, totalAmount, referredByAgentId, referralCodeUsed
                 ]);
                 const orderId = orderResult.insertId;
                 // Create Order Items
                 const itemValues = orderItems.map(item => [orderId, item.product_id, item.qty, item.unit_price, item.line_total]);
                 yield connection.query(`INSERT INTO order_items (order_id, product_id, qty, unit_price, line_total) VALUES ?`, [itemValues]);
+                // Generate referral-attributed commissions in the same DB transaction.
+                yield referralCommission_service_1.ReferralCommissionService.generateCommissionsForOrder(connection, {
+                    orderId,
+                    agentId: referredByAgentId,
+                });
                 // Update Wallet Reference ID if wallet payment
                 if (data.payment_method === 'wallet') {
                     yield connection.query('UPDATE wallet_transactions SET reference_id = ? WHERE reference_type = "order" AND reference_id IS NULL AND user_id = ? ORDER BY id DESC LIMIT 1', [orderId, userId]);
                 }
-                // Close Cart (Mark product items as processed or close cart? 
-                // Strategy: We will clone items to order, and clear them from cart or close cart. 
-                // Since schema says ONE open cart per user, we should probably clear product items or close cart.)
-                // Let's close the cart for simplicity as V1
-                yield connection.query('UPDATE carts SET status = ? WHERE id = ?', ['checked_out', cart.id]);
+                // Clear ONLY product items from cart (keep service items for bookings)
+                yield connection.query(`DELETE FROM cart_items WHERE cart_id = ? AND item_type = 'product'`, [cart.id]);
                 yield connection.commit();
-                return { orderId, totalAmount, status: 'pending' };
+                return {
+                    orderId,
+                    totalAmount,
+                    status: 'pending',
+                    paymentStatus: data.payment_method === 'wallet' ? 'paid' : 'pending',
+                    referred_by_agent_id: referredByAgentId,
+                    referral_code_used: referralCodeUsed,
+                };
             }
             catch (error) {
                 yield connection.rollback();

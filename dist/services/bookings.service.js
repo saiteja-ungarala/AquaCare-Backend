@@ -13,13 +13,23 @@ exports.BookingService = void 0;
 const booking_model_1 = require("../models/booking.model");
 const service_model_1 = require("../models/service.model");
 const address_model_1 = require("../models/address.model");
+const constants_1 = require("../config/constants");
+// Map status query param to actual DB status values
+const STATUS_MAP = {
+    active: [constants_1.BOOKING_STATUS.PENDING, constants_1.BOOKING_STATUS.CONFIRMED, constants_1.BOOKING_STATUS.ASSIGNED, constants_1.BOOKING_STATUS.IN_PROGRESS],
+    completed: [constants_1.BOOKING_STATUS.COMPLETED],
+    cancelled: [constants_1.BOOKING_STATUS.CANCELLED],
+};
 exports.BookingService = {
     getBookings(userId, query) {
         return __awaiter(this, void 0, void 0, function* () {
             const page = parseInt(query.page) || 1;
             const limit = parseInt(query.pageSize) || 20;
             const offset = (page - 1) * limit;
-            const { bookings, total } = yield booking_model_1.BookingModel.findByUser(userId, limit, offset);
+            // Resolve status filter
+            const statusParam = (query.status || '').toLowerCase();
+            const statusList = STATUS_MAP[statusParam] || undefined;
+            const { bookings, total } = yield booking_model_1.BookingModel.findByUser(userId, limit, offset, statusList);
             return {
                 data: bookings,
                 pagination: {

@@ -44,6 +44,7 @@ router.get('/profile', ProfileController.getProfile);
 router.patch('/profile', ProfileController.updateProfile);
 router.get('/addresses', ProfileController.getAddresses);
 router.post('/addresses', (0, validate_middleware_1.validate)(address_dto_1.AddressSchema), ProfileController.addAddress);
-router.patch('/addresses/:id', ProfileController.updateAddress); // Partial update allowed via schema later or lenient
+router.patch('/addresses/:id/default', ProfileController.setAddressDefault);
+router.patch('/addresses/:id', (0, validate_middleware_1.validate)(address_dto_1.UpdateAddressSchema), ProfileController.updateAddress);
 router.delete('/addresses/:id', ProfileController.deleteAddress);
 exports.default = router;

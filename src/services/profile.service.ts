@@ -52,9 +52,25 @@ export const ProfileService = {
             throw { type: 'AppError', message: 'Address not found', statusCode: 404 };
         }
 
-        await AddressModel.update(addressId, data);
+        const allowed: Partial<Address> = {};
+        if (data.label !== undefined) allowed.label = data.label;
+        if (data.line1 !== undefined) allowed.line1 = data.line1;
+        if (data.line2 !== undefined) allowed.line2 = data.line2;
+        if (data.city !== undefined) allowed.city = data.city;
+        if (data.state !== undefined) allowed.state = data.state;
+        if (data.postal_code !== undefined) allowed.postal_code = data.postal_code;
+        if (data.country !== undefined) allowed.country = data.country;
+        if (data.latitude !== undefined) allowed.latitude = data.latitude;
+        if (data.longitude !== undefined) allowed.longitude = data.longitude;
+        if (data.is_default !== undefined) allowed.is_default = data.is_default;
 
-        if (data.is_default) {
+        if (Object.keys(allowed).length === 0) {
+            throw { type: 'AppError', message: 'No valid fields to update', statusCode: 400 };
+        }
+
+        await AddressModel.update(addressId, allowed);
+
+        if (allowed.is_default) {
             await AddressModel.setDefault(userId, addressId);
         }
 

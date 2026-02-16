@@ -4,6 +4,7 @@ import { CartModel } from '../models/cart.model';
 import { AddressModel } from '../models/address.model';
 import { WalletModel } from '../models/wallet.model';
 import { ORDER_STATUS } from '../config/constants';
+import { ReferralCommissionService } from './referralCommission.service';
 
 export const OrderService = {
     async getOrders(userId: number, query: any) {
@@ -31,7 +32,7 @@ export const OrderService = {
         return order;
     },
 
-    async checkout(userId: number, data: { address_id: number; payment_method: string }) {
+    async checkout(userId: number, data: { address_id: number; payment_method: string; referral_code?: string }) {
         // 1. Validate Address
         const address = await AddressModel.findById(data.address_id);
         if (!address || address.user_id !== userId) throw { type: 'AppError', message: 'Invalid address', statusCode: 400 };
@@ -65,11 +66,17 @@ export const OrderService = {
 
         const deliveryFee = subtotal > 500 ? 0 : 50; // Simple rule
         const totalAmount = subtotal + deliveryFee;
+        const normalizedReferralCode = ReferralCommissionService.normalizeReferralCode(data.referral_code);
+        const validReferralCode = ReferralCommissionService.isValidReferralCodeFormat(normalizedReferralCode)
+            ? normalizedReferralCode
+            : null;
 
         // 4. Create Order Transaction
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
+            const referredByAgentId = await ReferralCommissionService.findAgentIdByReferralCode(connection, validReferralCode);
+            const referralCodeUsed = referredByAgentId ? validReferralCode : null;
 
             // Check Wallet if needed
             if (data.payment_method === 'wallet') {
@@ -88,12 +95,12 @@ export const OrderService = {
 
             // Create Order
             const [orderResult] = await connection.query<any>(
-                `INSERT INTO orders (user_id, address_id, status, payment_status, subtotal, delivery_fee, total_amount) 
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO orders (user_id, address_id, status, payment_status, subtotal, delivery_fee, total_amount, referred_by_agent_id, referral_code_used) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     userId, data.address_id, ORDER_STATUS.PENDING,
                     data.payment_method === 'wallet' ? 'paid' : 'pending',
-                    subtotal, deliveryFee, totalAmount
+                    subtotal, deliveryFee, totalAmount, referredByAgentId, referralCodeUsed
                 ]
             );
             const orderId = orderResult.insertId;
@@ -104,6 +111,12 @@ export const OrderService = {
                 `INSERT INTO order_items (order_id, product_id, qty, unit_price, line_total) VALUES ?`,
                 [itemValues]
             );
+
+            // Generate referral-attributed commissions in the same DB transaction.
+            await ReferralCommissionService.generateCommissionsForOrder(connection, {
+                orderId,
+                agentId: referredByAgentId,
+            });
 
             // Update Wallet Reference ID if wallet payment
             if (data.payment_method === 'wallet') {
@@ -118,7 +131,14 @@ export const OrderService = {
 
             await connection.commit();
 
-            return { orderId, totalAmount, status: 'pending', paymentStatus: data.payment_method === 'wallet' ? 'paid' : 'pending' };
+            return {
+                orderId,
+                totalAmount,
+                status: 'pending',
+                paymentStatus: data.payment_method === 'wallet' ? 'paid' : 'pending',
+                referred_by_agent_id: referredByAgentId,
+                referral_code_used: referralCodeUsed,
+            };
 
         } catch (error) {
             await connection.rollback();

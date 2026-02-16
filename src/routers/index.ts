@@ -7,16 +7,18 @@ import OrderRoutes from './orders.routes';
 import WalletRoutes from './wallet.routes';
 import ProfileRoutes from './profile.routes';
 import StoreRoutes from './store.routes';
+import AgentRoutes from './agent.routes';
 
 const router = Router();
 
 router.use('/auth', AuthRoutes);
-router.use('/', CatalogRoutes); // /services, /products are root level in spec but grouped in catalog
+router.use('/', CatalogRoutes); // legacy customer catalog: /services and lightweight /products
 router.use('/cart', CartRoutes);
 router.use('/bookings', BookingRoutes);
 router.use('/orders', OrderRoutes);
 router.use('/wallet', WalletRoutes);
 router.use('/user', ProfileRoutes);
-router.use('/store', StoreRoutes);
+router.use('/store', StoreRoutes); // store commerce domain: categories + advanced product listing/detail
+router.use('/agent', AgentRoutes);
 
 export default router;

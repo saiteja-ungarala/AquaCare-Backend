@@ -13,11 +13,23 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserModel = void 0;
+exports.generateReferralCode = generateReferralCode;
 const db_1 = __importDefault(require("../config/db"));
+const crypto_1 = __importDefault(require("crypto"));
+/** Generate a unique referral code like AQ1X3K7P */
+function generateReferralCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
+    let code = 'AQ';
+    for (let i = 0; i < 6; i++) {
+        code += chars[crypto_1.default.randomInt(chars.length)];
+    }
+    return code;
+}
 exports.UserModel = {
     create(user) {
         return __awaiter(this, void 0, void 0, function* () {
-            const [result] = yield db_1.default.query(`INSERT INTO users (role, full_name, email, phone, password_hash) VALUES (?, ?, ?, ?, ?)`, [user.role, user.full_name, user.email, user.phone, user.password_hash]);
+            const referralCode = user.referral_code || generateReferralCode();
+            const [result] = yield db_1.default.query(`INSERT INTO users (role, full_name, email, phone, password_hash, referral_code, referred_by) VALUES (?, ?, ?, ?, ?, ?, ?)`, [user.role, user.full_name, user.email, user.phone, user.password_hash, referralCode, user.referred_by || null]);
             return result.insertId;
         });
     },

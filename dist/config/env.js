@@ -8,10 +8,11 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 dotenv_1.default.config({ path: path_1.default.resolve(__dirname, '../../.env') });
 exports.env = {
-    PORT: process.env.PORT || 3000,
-    DB_HOST: process.env.DB_HOST || 'localhost',
+    port: process.env.PORT || 3000,
+    DB_PORT: Number(process.env.DB_PORT || 3306),
+    DB_HOST: process.env.DB_HOST || '127.0.0.1',
     DB_USER: process.env.DB_USER || 'root',
-    DB_PASSWORD: process.env.DB_PASSWORD || 'password',
+    DB_PASSWORD: process.env.DB_PASSWORD || 'ROOT',
     DB_NAME: process.env.DB_NAME || 'aquacare',
     JWT_SECRET: process.env.JWT_SECRET || 'supersecretkey',
     JWT_ACCESS_EXPIRY: process.env.JWT_ACCESS_EXPIRY || '15m',

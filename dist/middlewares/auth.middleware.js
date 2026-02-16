@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.authorize = exports.authenticate = void 0;
+exports.requireRole = exports.authorize = exports.authenticate = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const env_1 = require("../config/env");
 const response_1 = require("../utils/response");
@@ -33,3 +33,16 @@ const authorize = (roles) => (req, res, next) => {
     next();
 };
 exports.authorize = authorize;
+const requireRole = (role) => {
+    return (req, res, next) => {
+        if (!req.user) {
+            return (0, response_1.errorResponse)(res, 'Unauthorized', 401);
+        }
+        const userRole = req.user.role;
+        if (userRole !== role) {
+            return (0, response_1.errorResponse)(res, 'Forbidden: Insufficient permissions', 403);
+        }
+        next();
+    };
+};
+exports.requireRole = requireRole;

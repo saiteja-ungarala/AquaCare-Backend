@@ -36,6 +36,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const CatalogController = __importStar(require("../controllers/catalog.controller"));
 const router = (0, express_1.Router)();
+// Customer catalog endpoints.
+// NOTE: `/products` is kept for lightweight catalog compatibility in existing clients.
+// Store commerce flows use `/store/products` with richer filtering/pagination.
 router.get('/services', CatalogController.getServices);
 router.get('/services/:id', CatalogController.getServiceById);
 router.get('/products', CatalogController.getProducts);

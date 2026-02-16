@@ -27,26 +27,42 @@ exports.BookingModel = {
         });
     },
     findByUser(userId_1) {
-        return __awaiter(this, arguments, void 0, function* (userId, limit = 20, offset = 0) {
-            const [countRows] = yield db_1.default.query('SELECT COUNT(*) as total FROM bookings WHERE user_id = ?', [userId]);
+        return __awaiter(this, arguments, void 0, function* (userId, limit = 20, offset = 0, statusList) {
+            let where = 'WHERE b.user_id = ?';
+            const values = [userId];
+            if (statusList && statusList.length > 0) {
+                where += ` AND b.status IN (${statusList.map(() => '?').join(',')})`;
+                values.push(...statusList);
+            }
+            const [countRows] = yield db_1.default.query(`SELECT COUNT(*) as total FROM bookings b ${where}`, values);
             const total = countRows[0].total;
             const query = `
-      SELECT b.*, s.name as service_name, s.image_url as service_image 
+      SELECT b.*, 
+             s.name as service_name, s.image_url as service_image, s.category as service_category, s.duration_minutes,
+             a.line1 as address_line1, a.city as address_city, a.state as address_state, a.postal_code as address_postal_code,
+             ag.full_name as agent_name, ag.phone as agent_phone
       FROM bookings b
       JOIN services s ON b.service_id = s.id
-      WHERE b.user_id = ? 
+      LEFT JOIN addresses a ON b.address_id = a.id
+      LEFT JOIN users ag ON b.agent_id = ag.id
+      ${where}
       ORDER BY b.created_at DESC 
       LIMIT ? OFFSET ?
     `;
-            const [rows] = yield db_1.default.query(query, [userId, limit, offset]);
+            const queryValues = [...values, limit, offset];
+            const [rows] = yield db_1.default.query(query, queryValues);
             return { bookings: rows, total };
         });
     },
     findById(id) {
         return __awaiter(this, void 0, void 0, function* () {
-            const [rows] = yield db_1.default.query(`SELECT b.*, s.name as service_name, s.duration_minutes 
+            const [rows] = yield db_1.default.query(`SELECT b.*, s.name as service_name, s.duration_minutes, s.image_url as service_image, s.category as service_category,
+                    a.line1 as address_line1, a.city as address_city, a.state as address_state, a.postal_code as address_postal_code,
+                    ag.full_name as agent_name, ag.phone as agent_phone
          FROM bookings b
          JOIN services s ON b.service_id = s.id
+         LEFT JOIN addresses a ON b.address_id = a.id
+         LEFT JOIN users ag ON b.agent_id = ag.id
          WHERE b.id = ?`, [id]);
             return rows[0] || null;
         });

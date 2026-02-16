@@ -32,3 +32,18 @@ export const authorize = (roles: string[]) => (req: Request, res: Response, next
 
     next();
 };
+
+export const requireRole = (role: string) => {
+    return (req: Request, res: Response, next: NextFunction) => {
+        if (!req.user) {
+            return errorResponse(res, 'Unauthorized', 401);
+        }
+
+        const userRole = (req.user as any).role;
+        if (userRole !== role) {
+            return errorResponse(res, 'Forbidden: Insufficient permissions', 403);
+        }
+
+        next();
+    };
+};

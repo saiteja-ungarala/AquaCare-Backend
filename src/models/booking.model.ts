@@ -45,10 +45,12 @@ export const BookingModel = {
         const query = `
       SELECT b.*, 
              s.name as service_name, s.image_url as service_image, s.category as service_category, s.duration_minutes,
-             a.line1 as address_line1, a.city as address_city, a.state as address_state, a.postal_code as address_postal_code
+             a.line1 as address_line1, a.city as address_city, a.state as address_state, a.postal_code as address_postal_code,
+             ag.full_name as agent_name, ag.phone as agent_phone
       FROM bookings b
       JOIN services s ON b.service_id = s.id
       LEFT JOIN addresses a ON b.address_id = a.id
+      LEFT JOIN users ag ON b.agent_id = ag.id
       ${where}
       ORDER BY b.created_at DESC 
       LIMIT ? OFFSET ?
@@ -61,10 +63,12 @@ export const BookingModel = {
     async findById(id: number): Promise<Booking | null> {
         const [rows] = await pool.query<RowDataPacket[]>(
             `SELECT b.*, s.name as service_name, s.duration_minutes, s.image_url as service_image, s.category as service_category,
-                    a.line1 as address_line1, a.city as address_city, a.state as address_state, a.postal_code as address_postal_code
+                    a.line1 as address_line1, a.city as address_city, a.state as address_state, a.postal_code as address_postal_code,
+                    ag.full_name as agent_name, ag.phone as agent_phone
          FROM bookings b
          JOIN services s ON b.service_id = s.id
          LEFT JOIN addresses a ON b.address_id = a.id
+         LEFT JOIN users ag ON b.agent_id = ag.id
          WHERE b.id = ?`,
             [id]
         );
