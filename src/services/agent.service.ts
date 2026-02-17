@@ -122,9 +122,18 @@ export const AgentService = {
             throw { type: 'AppError', message: 'Agent profile not found', statusCode: 404 };
         }
 
+        const myJobs = await AgentModel.getMyAssignedJobs(agentId);
+
         if (profile.base_lat === null || profile.base_lng === null) {
             console.warn(`[AgentService] Agent ${agentId} has no base coordinates. Returning available jobs without distance filter.`);
-            const jobs = await AgentModel.getAvailableJobsWithoutDistance(agentId);
+            const availableJobs = await AgentModel.getAvailableJobsWithoutDistance(agentId);
+            const jobsMap = new Map<number, any>();
+            [...availableJobs, ...myJobs].forEach((job) => jobsMap.set(Number(job.id), job));
+            const jobs = Array.from(jobsMap.values()).sort((a, b) => {
+                const aDate = new Date(a.created_at || 0).getTime();
+                const bDate = new Date(b.created_at || 0).getTime();
+                return bDate - aDate;
+            });
             return {
                 jobs,
                 meta: {
@@ -134,11 +143,18 @@ export const AgentService = {
             };
         }
 
-        const jobs = await AgentModel.getAvailableJobsWithinRadius({
+        const availableJobs = await AgentModel.getAvailableJobsWithinRadius({
             agentId,
             baseLat: Number(profile.base_lat),
             baseLng: Number(profile.base_lng),
             radiusKm: Number(profile.service_radius_km || 0),
+        });
+        const jobsMap = new Map<number, any>();
+        [...availableJobs, ...myJobs].forEach((job) => jobsMap.set(Number(job.id), job));
+        const jobs = Array.from(jobsMap.values()).sort((a, b) => {
+            const aDate = new Date(a.created_at || 0).getTime();
+            const bDate = new Date(b.created_at || 0).getTime();
+            return bDate - aDate;
         });
 
         return {

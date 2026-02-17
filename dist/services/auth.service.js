@@ -26,6 +26,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const crypto_1 = require("crypto");
 const user_model_1 = require("../models/user.model");
 const env_1 = require("../config/env");
 exports.AuthService = {
@@ -42,12 +43,16 @@ exports.AuthService = {
             return Object.assign({ user: this.sanitizeUser(user) }, tokens);
         });
     },
-    login(email, password) {
+    login(email, password, role) {
         return __awaiter(this, void 0, void 0, function* () {
             const user = yield user_model_1.UserModel.findByEmail(email);
             // User not found - return 404
             if (!user) {
                 throw { type: 'AppError', message: 'User not found', statusCode: 404 };
+            }
+            // Enforce selected role login. If mismatch, do not allow cross-role login.
+            if (role && user.role !== role) {
+                throw { type: 'AppError', message: 'Credentials not found', statusCode: 404 };
             }
             // Wrong password - return 401
             const isPasswordValid = yield bcrypt_1.default.compare(password, user.password_hash);
@@ -82,7 +87,7 @@ exports.AuthService = {
     generateTokens(user) {
         return __awaiter(this, void 0, void 0, function* () {
             const accessToken = jsonwebtoken_1.default.sign({ id: user.id, role: user.role, email: user.email }, env_1.env.JWT_SECRET, { expiresIn: env_1.env.JWT_ACCESS_EXPIRY });
-            const refreshToken = jsonwebtoken_1.default.sign({ id: user.id }, env_1.env.JWT_SECRET, { expiresIn: env_1.env.JWT_REFRESH_EXPIRY });
+            const refreshToken = jsonwebtoken_1.default.sign({ id: user.id, jti: (0, crypto_1.randomUUID)() }, env_1.env.JWT_SECRET, { expiresIn: env_1.env.JWT_REFRESH_EXPIRY });
             // Store refresh token in DB
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 7); // 7 days

@@ -26,7 +26,7 @@ const signup = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
 exports.signup = signup;
 const login = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const result = yield auth_service_1.AuthService.login(req.body.email, req.body.password);
+        const result = yield auth_service_1.AuthService.login(req.body.email, req.body.password, req.body.role);
         return (0, response_1.successResponse)(res, result, 'Login successful');
     }
     catch (error) {

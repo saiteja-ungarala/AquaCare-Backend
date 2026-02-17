@@ -65,6 +65,9 @@ exports.CartModel = {
     },
     updateItem(id, data) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (Object.keys(data).length === 0) {
+                return;
+            }
             const fields = Object.keys(data).map((key) => `${key} = ?`).join(', ');
             const values = Object.values(data);
             yield db_1.default.query(`UPDATE cart_items SET ${fields} WHERE id = ?`, [...values, id]);

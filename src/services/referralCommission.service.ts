@@ -218,7 +218,7 @@ export const ReferralCommissionService = {
         const connection = await pool.getConnection();
         try {
             const [campaignRows] = await connection.query<RowDataPacket[]>(
-                `SELECT id, name, description, start_at, end_at
+                `SELECT id, start_at, end_at
                  FROM commission_campaigns
                  WHERE is_active = 1 AND start_at <= NOW() AND end_at >= NOW()
                  ORDER BY start_at ASC`
@@ -241,8 +241,8 @@ export const ReferralCommissionService = {
 
             return campaignRows.map((campaign) => ({
                 id: Number(campaign.id),
-                name: campaign.name,
-                description: campaign.description,
+                name: campaign.name ? String(campaign.name) : `Campaign #${Number(campaign.id)}`,
+                description: campaign.description ? String(campaign.description) : null,
                 start_at: campaign.start_at,
                 end_at: campaign.end_at,
                 tiers: tierRows
@@ -334,7 +334,7 @@ export const ReferralCommissionService = {
 
     async getActiveCampaign(connection: PoolConnection): Promise<CampaignRow | null> {
         const [rows] = await connection.query<CampaignRow[]>(
-            `SELECT id, name, start_at, end_at, is_active
+            `SELECT id, start_at, end_at, is_active
              FROM commission_campaigns
              WHERE is_active = 1
                AND start_at <= NOW()

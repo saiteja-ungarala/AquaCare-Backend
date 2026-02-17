@@ -20,6 +20,81 @@ const address_model_1 = require("../models/address.model");
 const wallet_model_1 = require("../models/wallet.model");
 const constants_1 = require("../config/constants");
 const referralCommission_service_1 = require("./referralCommission.service");
+const ACTIVE_ORDER_STATUSES = new Set(['pending', 'confirmed', 'paid', 'processing', 'packed', 'shipped']);
+const DELIVERED_ORDER_STATUSES = new Set(['delivered', 'completed']);
+const CANCELLED_ORDER_STATUSES = new Set(['cancelled', 'refunded']);
+const normalizeStatus = (status) => (status || 'pending').toLowerCase();
+const mapOrderStatusBucket = (status) => {
+    const normalized = normalizeStatus(status);
+    if (DELIVERED_ORDER_STATUSES.has(normalized))
+        return 'delivered';
+    if (CANCELLED_ORDER_STATUSES.has(normalized))
+        return 'cancelled';
+    if (ACTIVE_ORDER_STATUSES.has(normalized))
+        return 'active';
+    return 'active';
+};
+const mapOrderSummary = (order) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+    return ({
+        id: Number(order.id),
+        user_id: Number(order.user_id),
+        address_id: (_a = order.address_id) !== null && _a !== void 0 ? _a : null,
+        status: normalizeStatus(order.status),
+        status_bucket: mapOrderStatusBucket(order.status),
+        payment_status: normalizeStatus(order.payment_status),
+        subtotal: Number((_b = order.subtotal) !== null && _b !== void 0 ? _b : 0),
+        delivery_fee: Number((_c = order.delivery_fee) !== null && _c !== void 0 ? _c : 0),
+        discount: Number((_d = order.discount) !== null && _d !== void 0 ? _d : 0),
+        total_amount: Number((_e = order.total_amount) !== null && _e !== void 0 ? _e : 0),
+        created_at: order.created_at,
+        updated_at: (_f = order.updated_at) !== null && _f !== void 0 ? _f : null,
+        referred_by_agent_id: (_g = order.referred_by_agent_id) !== null && _g !== void 0 ? _g : null,
+        referral_code_used: (_h = order.referral_code_used) !== null && _h !== void 0 ? _h : null,
+        item_count: Number((_j = order.item_count) !== null && _j !== void 0 ? _j : 0),
+        first_item: order.first_product_name || order.first_product_image
+            ? {
+                product_name: (_k = order.first_product_name) !== null && _k !== void 0 ? _k : null,
+                image_url: (_l = order.first_product_image) !== null && _l !== void 0 ? _l : null,
+            }
+            : null,
+    });
+};
+const mapOrderDetail = (order) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    return ({
+        id: Number(order.id),
+        user_id: Number(order.user_id),
+        address_id: (_a = order.address_id) !== null && _a !== void 0 ? _a : null,
+        status: normalizeStatus(order.status),
+        status_bucket: mapOrderStatusBucket(order.status),
+        payment_status: normalizeStatus(order.payment_status),
+        subtotal: Number((_b = order.subtotal) !== null && _b !== void 0 ? _b : 0),
+        delivery_fee: Number((_c = order.delivery_fee) !== null && _c !== void 0 ? _c : 0),
+        discount: Number((_d = order.discount) !== null && _d !== void 0 ? _d : 0),
+        total_amount: Number((_e = order.total_amount) !== null && _e !== void 0 ? _e : 0),
+        created_at: order.created_at,
+        updated_at: (_f = order.updated_at) !== null && _f !== void 0 ? _f : null,
+        referred_by_agent_id: (_g = order.referred_by_agent_id) !== null && _g !== void 0 ? _g : null,
+        referral_code_used: (_h = order.referral_code_used) !== null && _h !== void 0 ? _h : null,
+        address: order.address,
+        items: Array.isArray(order.items)
+            ? order.items.map((item) => {
+                var _a, _b, _c, _d, _e;
+                return ({
+                    id: Number(item.id),
+                    order_id: Number(item.order_id),
+                    product_id: Number(item.product_id),
+                    qty: Number((_a = item.qty) !== null && _a !== void 0 ? _a : 0),
+                    unit_price: Number((_b = item.unit_price) !== null && _b !== void 0 ? _b : 0),
+                    line_total: Number((_c = item.line_total) !== null && _c !== void 0 ? _c : 0),
+                    product_name: (_d = item.product_name) !== null && _d !== void 0 ? _d : null,
+                    image_url: (_e = item.image_url) !== null && _e !== void 0 ? _e : null,
+                });
+            })
+            : [],
+    });
+};
 exports.OrderService = {
     getOrders(userId, query) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -27,8 +102,9 @@ exports.OrderService = {
             const limit = parseInt(query.pageSize) || 20;
             const offset = (page - 1) * limit;
             const { orders, total } = yield order_model_1.OrderModel.findByUser(userId, limit, offset);
+            const mappedOrders = orders.map(mapOrderSummary);
             return {
-                data: orders,
+                data: mappedOrders,
                 pagination: {
                     page,
                     pageSize: limit,
@@ -45,7 +121,7 @@ exports.OrderService = {
                 throw { type: 'AppError', message: 'Order not found', statusCode: 404 };
             if (order.user_id !== userId)
                 throw { type: 'AppError', message: 'Unauthorized', statusCode: 403 };
-            return order;
+            return mapOrderDetail(order);
         });
     },
     checkout(userId, data) {

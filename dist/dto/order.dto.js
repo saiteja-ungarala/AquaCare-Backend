@@ -4,8 +4,8 @@ exports.CheckoutSchema = void 0;
 const zod_1 = require("zod");
 exports.CheckoutSchema = zod_1.z.object({
     body: zod_1.z.object({
-        addressId: zod_1.z.number().optional(),
-        address_id: zod_1.z.number().optional(),
+        addressId: zod_1.z.coerce.number().optional(),
+        address_id: zod_1.z.coerce.number().optional(),
         paymentMethod: zod_1.z.enum(['cod', 'wallet', 'online']).optional(),
         payment_method: zod_1.z.enum(['cod', 'wallet', 'online']).optional(),
         referralCode: zod_1.z.preprocess((value) => (typeof value === 'string' ? value : undefined), zod_1.z.string().optional()),

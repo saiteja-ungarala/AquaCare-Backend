@@ -24,10 +24,48 @@
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| GET | `/cart` | Get user's cart |
-| POST | `/cart/items` | Add item to cart |
-| PATCH | `/cart/items/:id` | Update cart item (quantity) |
+| GET | `/cart` | Get user's open cart with hydrated item details |
+| POST | `/cart/items` | Add item to cart (upsert qty for same product) |
+| PATCH | `/cart/items/:id` | Update cart item (`qty: 0` removes item) |
 | DELETE | `/cart/items/:id` | Remove item from cart |
+
+### Cart Response Shape (GET `/cart`)
+```json
+{
+  "success": true,
+  "data": {
+    "cart_id": 8,
+    "status": "open",
+    "items": [
+      {
+        "cart_item_id": 23,
+        "cart_id": 8,
+        "item_type": "product",
+        "product_id": 12,
+        "qty": 2,
+        "unit_price": 299,
+        "line_total": 598,
+        "product": {
+          "id": 12,
+          "name": "RO Pre Filter",
+          "price": 299,
+          "image_url": "https://..."
+        }
+      }
+    ]
+  }
+}
+```
+
+### Add Product Item (POST `/cart/items`)
+Request:
+```json
+{
+  "item_type": "product",
+  "product_id": 12,
+  "qty": 1
+}
+```
 
 ## Bookings (`/bookings`)
 *All endpoints require authentication.*
@@ -43,9 +81,76 @@
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| GET | `/orders` | List user's orders |
-| GET | `/orders/:id` | Get order details |
+| GET | `/orders` | List user's orders (summary cards) |
+| GET | `/orders/:id` | Get order details (address + items) |
 | POST | `/orders/checkout` | Checkout and place order (supports optional `referral_code`) |
+
+### Status Bucket Mapping
+- `active`: `pending`, `confirmed`, `paid`, `processing`, `packed`, `shipped`
+- `delivered`: `delivered`, `completed`
+- `cancelled`: `cancelled`, `refunded`
+
+### Orders List Shape (GET `/orders`)
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 3,
+      "status": "pending",
+      "status_bucket": "active",
+      "payment_status": "pending",
+      "subtotal": 290,
+      "delivery_fee": 50,
+      "discount": 0,
+      "total_amount": 340,
+      "created_at": "2026-02-17T12:13:10.000Z",
+      "item_count": 2,
+      "first_item": {
+        "product_name": "RO Membrane",
+        "image_url": "https://..."
+      }
+    }
+  ]
+}
+```
+
+### Order Detail Shape (GET `/orders/:id`)
+```json
+{
+  "success": true,
+  "data": {
+    "id": 3,
+    "status": "pending",
+    "status_bucket": "active",
+    "payment_status": "pending",
+    "subtotal": 290,
+    "delivery_fee": 50,
+    "discount": 0,
+    "total_amount": 340,
+    "created_at": "2026-02-17T12:13:10.000Z",
+    "address": {
+      "id": 20,
+      "line1": "12 Lake Road",
+      "city": "Hyderabad",
+      "state": "Telangana",
+      "postal_code": "500001"
+    },
+    "items": [
+      {
+        "id": 5,
+        "order_id": 3,
+        "product_id": 8,
+        "product_name": "RO Membrane",
+        "qty": 1,
+        "unit_price": 180,
+        "line_total": 180,
+        "image_url": "https://..."
+      }
+    ]
+  }
+}
+```
 
 ## Wallet (`/wallet`)
 *All endpoints require authentication.*
@@ -169,10 +274,111 @@ curl -X POST http://localhost:3000/api/orders/checkout \
 ```
 
 ```bash
+# Cart + Orders verification flow
+# 1) Add product to cart (upsert behavior)
+curl -X POST http://localhost:3000/api/cart/items \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"item_type":"product","product_id":1,"qty":1}'
+
+# 2) Fetch cart
+curl http://localhost:3000/api/cart \
+  -H "Authorization: Bearer <TOKEN>"
+
+# 3) Update qty (qty=0 removes item)
+curl -X PATCH http://localhost:3000/api/cart/items/23 \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"qty":2}'
+
+# 4) Checkout
+curl -X POST http://localhost:3000/api/orders/checkout \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"address_id":1,"payment_method":"cod"}'
+
+# 5) List orders
+curl http://localhost:3000/api/orders \
+  -H "Authorization: Bearer <TOKEN>"
+
+# 6) Order detail
+curl http://localhost:3000/api/orders/3 \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
+```bash
 # Agent referral + earning endpoints
 curl http://localhost:3000/api/agent/earn/referral -H "Authorization: Bearer <TOKEN>"
 curl http://localhost:3000/api/agent/earn/summary -H "Authorization: Bearer <TOKEN>"
 curl http://localhost:3000/api/agent/earn/campaigns -H "Authorization: Bearer <TOKEN>"
 curl http://localhost:3000/api/agent/earn/products -H "Authorization: Bearer <TOKEN>"
 curl http://localhost:3000/api/agent/earn/progress/1 -H "Authorization: Bearer <TOKEN>"
+```
+
+## Dealer Module (`/dealer`)
+*All endpoints require authentication and role `dealer`.*
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| GET | `/dealer/me` | Get dealer profile + KYC summary (auto-creates profile if missing) |
+| POST | `/dealer/kyc` | Upload one or more KYC documents (multipart) |
+| PATCH | `/dealer/status` | Update dealer business metadata |
+| GET | `/dealer/pricing/products` | List product dealer pricing preview (approved dealers only) |
+| GET | `/dealer/pricing/:productId` | Get dealer pricing breakdown for one product (approved dealers only) |
+
+### Dealer verification gating
+- `GET /dealer/pricing/products` and `GET /dealer/pricing/:productId` return `403` unless `dealer_profiles.verification_status = 'approved'`.
+- KYC submission sets `dealer_profiles.verification_status = 'pending'`.
+
+### Dealer curl examples
+```bash
+# Login as dealer
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"dealer@example.com","password":"password123","role":"dealer"}'
+```
+
+```bash
+# Dealer profile + KYC summary
+curl http://localhost:3000/api/dealer/me \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
+```bash
+# Upload dealer KYC docs (multipart)
+curl -X POST http://localhost:3000/api/dealer/kyc \
+  -H "Authorization: Bearer <TOKEN>" \
+  -F "doc_type=gst_certificate" \
+  -F "documents=@/absolute/path/gst-certificate.jpg" \
+  -F "documents=@/absolute/path/business-proof.pdf"
+```
+
+```bash
+# Update dealer business profile fields
+curl -X PATCH http://localhost:3000/api/dealer/status \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"business_name":"Aqua Dealers LLP","gst_number":"29ABCDE1234F1Z5","address_text":"12 Industrial Rd, Bengaluru"}'
+```
+
+```bash
+# Dealer pricing list (returns 403 until approved)
+curl http://localhost:3000/api/dealer/pricing/products \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
+```bash
+# Single product dealer pricing
+curl http://localhost:3000/api/dealer/pricing/12 \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
+### Admin review note (current backend)
+- Admin routes are not currently wired in this backend.
+- For local testing, approve a dealer manually:
+
+```sql
+UPDATE dealer_profiles
+SET verification_status = 'approved'
+WHERE user_id = <DEALER_USER_ID>;
 ```

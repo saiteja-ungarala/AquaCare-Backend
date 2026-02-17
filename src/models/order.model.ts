@@ -15,6 +15,12 @@ export interface Order {
     created_at: Date;
 }
 
+export interface OrderListRow extends Order {
+    item_count: number;
+    first_product_name: string | null;
+    first_product_image: string | null;
+}
+
 export interface OrderItem {
     id?: number;
     order_id: number;
@@ -22,6 +28,33 @@ export interface OrderItem {
     qty: number;
     unit_price: number;
     line_total: number;
+}
+
+export interface OrderDetailItem {
+    id: number;
+    product_id: number;
+    qty: number;
+    unit_price: number;
+    line_total: number;
+    product_name: string | null;
+    image_url: string | null;
+}
+
+export interface OrderDetail extends Order {
+    updated_at?: Date;
+    referred_by_agent_id?: number | null;
+    referral_code_used?: string | null;
+    address: {
+        id: number;
+        label?: string | null;
+        line1?: string | null;
+        line2?: string | null;
+        city?: string | null;
+        state?: string | null;
+        postal_code?: string | null;
+        country?: string | null;
+    } | null;
+    items: OrderDetailItem[];
 }
 
 export const OrderModel = {
@@ -45,29 +78,98 @@ export const OrderModel = {
         );
     },
 
-    async findByUser(userId: number, limit = 20, offset = 0): Promise<{ orders: Order[]; total: number }> {
+    async findByUser(userId: number, limit = 20, offset = 0): Promise<{ orders: OrderListRow[]; total: number }> {
         const [countRows] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) as total FROM orders WHERE user_id = ?', [userId]);
         const total = countRows[0].total;
 
         const [rows] = await pool.query<RowDataPacket[]>(
-            'SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            `SELECT 
+                o.*,
+                COALESCE((SELECT SUM(oi.qty) FROM order_items oi WHERE oi.order_id = o.id), 0) AS item_count,
+                (SELECT p.name
+                 FROM order_items oi
+                 LEFT JOIN products p ON p.id = oi.product_id
+                 WHERE oi.order_id = o.id
+                 ORDER BY oi.id ASC
+                 LIMIT 1) AS first_product_name,
+                (SELECT p.image_url
+                 FROM order_items oi
+                 LEFT JOIN products p ON p.id = oi.product_id
+                 WHERE oi.order_id = o.id
+                 ORDER BY oi.id ASC
+                 LIMIT 1) AS first_product_image
+             FROM orders o
+             WHERE o.user_id = ?
+             ORDER BY o.created_at DESC
+             LIMIT ? OFFSET ?`,
             [userId, limit, offset]
         );
-        return { orders: rows as Order[], total };
+        return { orders: rows as OrderListRow[], total };
     },
 
-    async findById(id: number): Promise<any | null> {
-        const [orderRows] = await pool.query<RowDataPacket[]>('SELECT * FROM orders WHERE id = ?', [id]);
+    async findById(id: number): Promise<OrderDetail | null> {
+        const [orderRows] = await pool.query<RowDataPacket[]>(
+            `SELECT 
+                o.*,
+                a.id AS address_join_id,
+                a.label AS address_label,
+                a.line1 AS address_line1,
+                a.line2 AS address_line2,
+                a.city AS address_city,
+                a.state AS address_state,
+                a.postal_code AS address_postal_code,
+                a.country AS address_country
+             FROM orders o
+             LEFT JOIN addresses a ON a.id = o.address_id
+             WHERE o.id = ?`,
+            [id]
+        );
         if (orderRows.length === 0) return null;
 
         const [itemRows] = await pool.query<RowDataPacket[]>(
-            `SELECT oi.*, p.name as product_name, p.image_url 
+            `SELECT 
+                oi.id,
+                oi.order_id,
+                oi.product_id,
+                oi.qty,
+                oi.unit_price,
+                oi.line_total,
+                p.name as product_name,
+                p.image_url
        FROM order_items oi 
-       JOIN products p ON oi.product_id = p.id 
+       LEFT JOIN products p ON oi.product_id = p.id 
        WHERE oi.order_id = ?`,
             [id]
         );
 
-        return { ...orderRows[0], items: itemRows };
+        const order = orderRows[0];
+        const address = order.address_join_id ? {
+            id: Number(order.address_join_id),
+            label: order.address_label ?? null,
+            line1: order.address_line1 ?? null,
+            line2: order.address_line2 ?? null,
+            city: order.address_city ?? null,
+            state: order.address_state ?? null,
+            postal_code: order.address_postal_code ?? null,
+            country: order.address_country ?? null,
+        } : null;
+
+        return {
+            id: Number(order.id),
+            user_id: Number(order.user_id),
+            address_id: order.address_id ?? undefined,
+            status: order.status,
+            payment_status: order.payment_status,
+            subtotal: Number(order.subtotal ?? 0),
+            delivery_fee: Number(order.delivery_fee ?? 0),
+            discount: Number(order.discount ?? 0),
+            total_amount: Number(order.total_amount ?? 0),
+            created_at: order.created_at,
+            updated_at: order.updated_at ?? undefined,
+            referred_by_agent_id: order.referred_by_agent_id ?? null,
+            referral_code_used: order.referral_code_used ?? null,
+            address,
+            items: itemRows as OrderDetailItem[],
+        };
     },
 };

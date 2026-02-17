@@ -8,6 +8,7 @@ import WalletRoutes from './wallet.routes';
 import ProfileRoutes from './profile.routes';
 import StoreRoutes from './store.routes';
 import AgentRoutes from './agent.routes';
+import DealerRoutes from './dealer.routes';
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/wallet', WalletRoutes);
 router.use('/user', ProfileRoutes);
 router.use('/store', StoreRoutes); // store commerce domain: categories + advanced product listing/detail
 router.use('/agent', AgentRoutes);
+router.use('/dealer', DealerRoutes);
 
 export default router;

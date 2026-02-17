@@ -266,4 +266,49 @@ export const AgentModel = {
 
         return rows;
     },
+
+    async getMyAssignedJobs(agentId: number): Promise<RowDataPacket[]> {
+        const [rows] = await pool.query<RowDataPacket[]>(
+            `SELECT
+                b.id,
+                b.user_id,
+                b.service_id,
+                b.address_id,
+                b.scheduled_date,
+                b.scheduled_time,
+                b.status,
+                b.price,
+                b.notes,
+                b.created_at,
+                s.name AS service_name,
+                s.image_url AS service_image,
+                s.category AS service_category,
+                s.duration_minutes,
+                a.line1 AS address_line1,
+                a.line2 AS address_line2,
+                a.city AS address_city,
+                a.state AS address_state,
+                a.postal_code AS address_postal_code,
+                a.latitude AS address_latitude,
+                a.longitude AS address_longitude,
+                u.full_name AS customer_name,
+                u.phone AS customer_phone,
+                NULL AS distance_km
+             FROM bookings b
+             JOIN services s ON s.id = b.service_id
+             LEFT JOIN addresses a ON a.id = b.address_id
+             JOIN users u ON u.id = b.user_id
+             WHERE b.agent_id = ?
+               AND b.status IN (?, ?, ?)
+             ORDER BY b.created_at DESC`,
+            [
+                agentId,
+                BOOKING_STATUS.ASSIGNED,
+                BOOKING_STATUS.IN_PROGRESS,
+                BOOKING_STATUS.COMPLETED,
+            ]
+        );
+
+        return rows;
+    },
 };

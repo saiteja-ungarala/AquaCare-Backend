@@ -80,6 +80,9 @@ export const CartModel = {
     },
 
     async updateItem(id: number, data: Partial<CartItem>): Promise<void> {
+        if (Object.keys(data).length === 0) {
+            return;
+        }
         const fields = Object.keys(data).map((key) => `${key} = ?`).join(', ');
         const values = Object.values(data);
         await pool.query(`UPDATE cart_items SET ${fields} WHERE id = ?`, [...values, id]);

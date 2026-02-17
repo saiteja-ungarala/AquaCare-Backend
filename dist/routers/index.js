@@ -13,6 +13,7 @@ const wallet_routes_1 = __importDefault(require("./wallet.routes"));
 const profile_routes_1 = __importDefault(require("./profile.routes"));
 const store_routes_1 = __importDefault(require("./store.routes"));
 const agent_routes_1 = __importDefault(require("./agent.routes"));
+const dealer_routes_1 = __importDefault(require("./dealer.routes"));
 const router = (0, express_1.Router)();
 router.use('/auth', auth_routes_1.default);
 router.use('/', catalog_routes_1.default); // legacy customer catalog: /services and lightweight /products
@@ -23,4 +24,5 @@ router.use('/wallet', wallet_routes_1.default);
 router.use('/user', profile_routes_1.default);
 router.use('/store', store_routes_1.default); // store commerce domain: categories + advanced product listing/detail
 router.use('/agent', agent_routes_1.default);
+router.use('/dealer', dealer_routes_1.default);
 exports.default = router;

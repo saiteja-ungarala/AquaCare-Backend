@@ -7,11 +7,11 @@ exports.AddCartItemSchema = zod_1.z.object({
         // Accept both camelCase and snake_case
         itemType: zod_1.z.enum(['product', 'service']).optional(),
         item_type: zod_1.z.enum(['product', 'service']).optional(),
-        productId: zod_1.z.number().optional(),
-        product_id: zod_1.z.number().optional(),
-        serviceId: zod_1.z.number().optional(),
-        service_id: zod_1.z.number().optional(),
-        qty: zod_1.z.number().min(1).default(1),
+        productId: zod_1.z.coerce.number().optional(),
+        product_id: zod_1.z.coerce.number().optional(),
+        serviceId: zod_1.z.coerce.number().optional(),
+        service_id: zod_1.z.coerce.number().optional(),
+        qty: zod_1.z.coerce.number().min(1).default(1),
         // Service specific
         bookingDate: zod_1.z.string().optional(),
         booking_date: zod_1.z.string().optional(),
@@ -31,19 +31,25 @@ exports.AddCartItemSchema = zod_1.z.object({
         notes: data.notes,
     })).refine(data => data.item_type, {
         message: "item_type is required (product or service)"
-    }).refine(data => data.product_id || data.service_id, {
-        message: "At least one of productId or serviceId is required"
+    }).refine(data => {
+        if (data.item_type === 'product')
+            return !!data.product_id;
+        if (data.item_type === 'service')
+            return !!data.service_id;
+        return false;
+    }, {
+        message: "product_id is required for product items and service_id is required for service items"
     }),
 });
 exports.UpdateCartItemSchema = zod_1.z.object({
     body: zod_1.z.object({
-        qty: zod_1.z.number().min(1).optional(),
+        qty: zod_1.z.coerce.number().min(0).optional(),
         bookingDate: zod_1.z.string().optional(),
         booking_date: zod_1.z.string().optional(),
         bookingTime: zod_1.z.string().optional(),
         booking_time: zod_1.z.string().optional(),
-        addressId: zod_1.z.number().optional(),
-        address_id: zod_1.z.number().optional(),
+        addressId: zod_1.z.coerce.number().optional(),
+        address_id: zod_1.z.coerce.number().optional(),
         notes: zod_1.z.string().optional(),
     }).transform(data => ({
         qty: data.qty,

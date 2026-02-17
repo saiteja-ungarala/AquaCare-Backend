@@ -6,6 +6,74 @@ import { WalletModel } from '../models/wallet.model';
 import { ORDER_STATUS } from '../config/constants';
 import { ReferralCommissionService } from './referralCommission.service';
 
+const ACTIVE_ORDER_STATUSES = new Set(['pending', 'confirmed', 'paid', 'processing', 'packed', 'shipped']);
+const DELIVERED_ORDER_STATUSES = new Set(['delivered', 'completed']);
+const CANCELLED_ORDER_STATUSES = new Set(['cancelled', 'refunded']);
+
+const normalizeStatus = (status?: string): string => (status || 'pending').toLowerCase();
+
+const mapOrderStatusBucket = (status?: string): 'active' | 'delivered' | 'cancelled' => {
+    const normalized = normalizeStatus(status);
+    if (DELIVERED_ORDER_STATUSES.has(normalized)) return 'delivered';
+    if (CANCELLED_ORDER_STATUSES.has(normalized)) return 'cancelled';
+    if (ACTIVE_ORDER_STATUSES.has(normalized)) return 'active';
+    return 'active';
+};
+
+const mapOrderSummary = (order: any) => ({
+    id: Number(order.id),
+    user_id: Number(order.user_id),
+    address_id: order.address_id ?? null,
+    status: normalizeStatus(order.status),
+    status_bucket: mapOrderStatusBucket(order.status),
+    payment_status: normalizeStatus(order.payment_status),
+    subtotal: Number(order.subtotal ?? 0),
+    delivery_fee: Number(order.delivery_fee ?? 0),
+    discount: Number(order.discount ?? 0),
+    total_amount: Number(order.total_amount ?? 0),
+    created_at: order.created_at,
+    updated_at: order.updated_at ?? null,
+    referred_by_agent_id: order.referred_by_agent_id ?? null,
+    referral_code_used: order.referral_code_used ?? null,
+    item_count: Number(order.item_count ?? 0),
+    first_item: order.first_product_name || order.first_product_image
+        ? {
+            product_name: order.first_product_name ?? null,
+            image_url: order.first_product_image ?? null,
+        }
+        : null,
+});
+
+const mapOrderDetail = (order: any) => ({
+    id: Number(order.id),
+    user_id: Number(order.user_id),
+    address_id: order.address_id ?? null,
+    status: normalizeStatus(order.status),
+    status_bucket: mapOrderStatusBucket(order.status),
+    payment_status: normalizeStatus(order.payment_status),
+    subtotal: Number(order.subtotal ?? 0),
+    delivery_fee: Number(order.delivery_fee ?? 0),
+    discount: Number(order.discount ?? 0),
+    total_amount: Number(order.total_amount ?? 0),
+    created_at: order.created_at,
+    updated_at: order.updated_at ?? null,
+    referred_by_agent_id: order.referred_by_agent_id ?? null,
+    referral_code_used: order.referral_code_used ?? null,
+    address: order.address,
+    items: Array.isArray(order.items)
+        ? order.items.map((item: any) => ({
+            id: Number(item.id),
+            order_id: Number(item.order_id),
+            product_id: Number(item.product_id),
+            qty: Number(item.qty ?? 0),
+            unit_price: Number(item.unit_price ?? 0),
+            line_total: Number(item.line_total ?? 0),
+            product_name: item.product_name ?? null,
+            image_url: item.image_url ?? null,
+        }))
+        : [],
+});
+
 export const OrderService = {
     async getOrders(userId: number, query: any) {
         const page = parseInt(query.page as string) || 1;
@@ -13,9 +81,10 @@ export const OrderService = {
         const offset = (page - 1) * limit;
 
         const { orders, total } = await OrderModel.findByUser(userId, limit, offset);
+        const mappedOrders = orders.map(mapOrderSummary);
 
         return {
-            data: orders,
+            data: mappedOrders,
             pagination: {
                 page,
                 pageSize: limit,
@@ -29,7 +98,7 @@ export const OrderService = {
         const order = await OrderModel.findById(orderId);
         if (!order) throw { type: 'AppError', message: 'Order not found', statusCode: 404 };
         if (order.user_id !== userId) throw { type: 'AppError', message: 'Unauthorized', statusCode: 403 };
-        return order;
+        return mapOrderDetail(order);
     },
 
     async checkout(userId: number, data: { address_id: number; payment_method: string; referral_code?: string }) {

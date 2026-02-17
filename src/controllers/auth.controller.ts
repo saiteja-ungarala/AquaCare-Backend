@@ -18,7 +18,7 @@ export const signup = async (req: Request, res: Response, next: NextFunction) =>
 
 export const login = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const result = await AuthService.login(req.body.email, req.body.password);
+        const result = await AuthService.login(req.body.email, req.body.password, req.body.role);
         return successResponse(res, result, 'Login successful');
     } catch (error) {
         next(error);

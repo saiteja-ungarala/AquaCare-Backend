@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 export const CheckoutSchema = z.object({
     body: z.object({
-        addressId: z.number().optional(),
-        address_id: z.number().optional(),
+        addressId: z.coerce.number().optional(),
+        address_id: z.coerce.number().optional(),
         paymentMethod: z.enum(['cod', 'wallet', 'online']).optional(),
         payment_method: z.enum(['cod', 'wallet', 'online']).optional(),
         referralCode: z.preprocess(

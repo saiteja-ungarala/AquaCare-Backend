@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 import { UserModel, User } from '../models/user.model';
 import { env } from '../config/env';
 
@@ -18,12 +19,17 @@ export const AuthService = {
         return { user: this.sanitizeUser(user!), ...tokens };
     },
 
-    async login(email: string, password: string): Promise<any> {
+    async login(email: string, password: string, role?: 'customer' | 'agent' | 'dealer'): Promise<any> {
         const user = await UserModel.findByEmail(email);
 
         // User not found - return 404
         if (!user) {
             throw { type: 'AppError', message: 'User not found', statusCode: 404 };
+        }
+
+        // Enforce selected role login. If mismatch, do not allow cross-role login.
+        if (role && user.role !== role) {
+            throw { type: 'AppError', message: 'Credentials not found', statusCode: 404 };
         }
 
         // Wrong password - return 401
@@ -66,7 +72,7 @@ export const AuthService = {
         );
 
         const refreshToken = jwt.sign(
-            { id: user.id },
+            { id: user.id, jti: randomUUID() },
             env.JWT_SECRET,
             { expiresIn: env.JWT_REFRESH_EXPIRY } as jwt.SignOptions
         );
