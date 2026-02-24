@@ -19,6 +19,19 @@
 | GET | `/products` | No | List all products |
 | GET | `/products/:id` | No | Get product details |
 
+## Store (`/store`)
+| Method | Endpoint | Authenticated | Description |
+| :--- | :--- | :--- | :--- |
+| GET | `/store/categories` | No | List active product categories |
+| GET | `/store/categories/:categoryId/brands` | No | List active brands with active products in category |
+| GET | `/store/products` | No | List active products filtered by `category_id`, optional `brand_id`, optional `search` |
+| GET | `/store/products/:id` | No | Get active product detail with brand + category |
+
+### Product image note
+- `products.image_url` is persisted as a file name (for example `ionora_purifier_basic.jpg`).
+- Put files under `uploads/products/<filename>`.
+- Store API includes `image_url_full` for display use.
+
 ## Cart (`/cart`)
 *All endpoints require authentication.*
 

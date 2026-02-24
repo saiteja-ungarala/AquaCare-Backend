@@ -10,6 +10,8 @@ const app = express();
 // Middleware
 app.use(helmet({
     contentSecurityPolicy: false, // Allow inline styles for login page
+    // Allow images/files from /uploads to be loaded by web app on a different origin/port.
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 app.use(cors());
 app.use(express.json());
