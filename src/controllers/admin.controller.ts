@@ -3,7 +3,6 @@ import pool from '../config/db';
 import { RowDataPacket, OkPacket } from 'mysql2';
 import { successResponse, errorResponse } from '../utils/response';
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function getKycListPaginated(
     profileTable: string,
@@ -89,11 +88,11 @@ async function getKycListPaginated(
 
 export const listAgentKyc = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const status  = req.query.status  as string | undefined;
-        const search  = req.query.search  as string | undefined;
-        const page    = Math.max(1, parseInt(req.query.page  as string) || 1);
-        const limit   = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-        const result  = await getKycListPaginated(
+        const status = req.query.status as string | undefined;
+        const search = req.query.search as string | undefined;
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+        const result = await getKycListPaginated(
             'agent_profiles', 'agent_kyc_documents', 'agent_id', status, search, page, limit
         );
         return successResponse(res, result);
@@ -159,11 +158,11 @@ export const rejectAgentKyc = async (req: Request, res: Response, next: NextFunc
 
 export const listDealerKyc = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const status  = req.query.status  as string | undefined;
-        const search  = req.query.search  as string | undefined;
-        const page    = Math.max(1, parseInt(req.query.page  as string) || 1);
-        const limit   = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-        const result  = await getKycListPaginated(
+        const status = req.query.status as string | undefined;
+        const search = req.query.search as string | undefined;
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+        const result = await getKycListPaginated(
             'dealer_profiles', 'dealer_kyc_documents', 'dealer_id', status, search, page, limit
         );
         return successResponse(res, result);
@@ -306,7 +305,7 @@ export const getKycStats = async (req: Request, res: Response, next: NextFunctio
         };
 
         return successResponse(res, {
-            agents:  toCounts(agentRows),
+            agents: toCounts(agentRows),
             dealers: toCounts(dealerRows),
         });
     } catch (error) { next(error); }
@@ -417,22 +416,22 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
         const total = (idx: number): number => Number(results[idx][0][0]?.total ?? 0);
 
         return successResponse(res, {
-            totalCustomers:   cnt(0),
-            totalAgents:      cnt(1),
-            totalDealers:     cnt(2),
-            pendingAgentKyc:  cnt(3),
+            totalCustomers: cnt(0),
+            totalAgents: cnt(1),
+            totalDealers: cnt(2),
+            pendingAgentKyc: cnt(3),
             pendingDealerKyc: cnt(4),
-            totalBookings:    cnt(5),
-            todayBookings:    cnt(6),
-            totalOrders:      cnt(7),
-            todayOrders:      cnt(8),
-            totalRevenue:     total(9),
-            todayRevenue:     total(10),
-            monthlyRevenue:   total(11),
-            activeProducts:   cnt(12),
-            activeServices:   cnt(13),
-            activeBanners:    cnt(14),
-            recentActivity:   results[15][0],
+            totalBookings: cnt(5),
+            todayBookings: cnt(6),
+            totalOrders: cnt(7),
+            todayOrders: cnt(8),
+            totalRevenue: total(9),
+            todayRevenue: total(10),
+            monthlyRevenue: total(11),
+            activeProducts: cnt(12),
+            activeServices: cnt(13),
+            activeBanners: cnt(14),
+            recentActivity: results[15][0],
         });
     } catch (error) {
         next(error);
@@ -443,7 +442,7 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
 
 export const adminListProducts = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const page  = Math.max(1, parseInt(req.query.page  as string) || 1);
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
         const offset = (page - 1) * limit;
         const { search, category_id, brand_id, is_active } = req.query;
@@ -456,7 +455,7 @@ export const adminListProducts = async (req: Request, res: Response, next: NextF
             params.push(`%${search}%`, `%${search}%`);
         }
         if (category_id) { conditions.push('p.category_id = ?'); params.push(Number(category_id)); }
-        if (brand_id)    { conditions.push('p.brand_id = ?');    params.push(Number(brand_id)); }
+        if (brand_id) { conditions.push('p.brand_id = ?'); params.push(Number(brand_id)); }
         if (is_active !== undefined && is_active !== '') {
             conditions.push('p.is_active = ?');
             params.push(Number(is_active));
@@ -500,7 +499,7 @@ export const adminCreateProduct = async (req: Request, res: Response, next: Next
             `INSERT INTO products (name, description, category_id, brand_id, price, mrp, stock_qty, sku, image_url, is_active)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
             [name, description ?? null, category_id ?? null, brand_id ?? null,
-             price, mrp ?? null, stock_qty ?? 0, sku ?? null, image_url ?? null]
+                price, mrp ?? null, stock_qty ?? 0, sku ?? null, image_url ?? null]
         );
 
         await logAdminAction(adminId, 'created_product', 'product', result.insertId);
@@ -716,7 +715,7 @@ export const adminCreateService = async (req: Request, res: Response, next: Next
             `INSERT INTO services (name, description, category, image_url, duration_minutes, base_price, is_active)
              VALUES (?, ?, ?, ?, ?, ?, 1)`,
             [name, description ?? null, category ?? null, image_url ?? null,
-             duration_minutes ?? null, base_price]
+                duration_minutes ?? null, base_price]
         );
 
         await logAdminAction(adminId, 'created_service', 'service', result.insertId);
@@ -800,7 +799,7 @@ export const adminCreateBanner = async (req: Request, res: Response, next: NextF
                 starts_at, expires_at, created_by)
              VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
             [title, subtitle ?? null, image_url, link_type, link_value ?? null,
-             finalOrder, starts_at ?? null, expires_at ?? null, adminId]
+                finalOrder, starts_at ?? null, expires_at ?? null, adminId]
         );
 
         await logAdminAction(adminId, 'created_banner', 'banner', result.insertId);
@@ -814,7 +813,7 @@ export const adminUpdateBanner = async (req: Request, res: Response, next: NextF
         const id = Number(req.params.id);
 
         const allowed = ['title', 'subtitle', 'image_url', 'link_type', 'link_value',
-                         'starts_at', 'expires_at', 'is_active', 'display_order'];
+            'starts_at', 'expires_at', 'is_active', 'display_order'];
         const fields: string[] = [];
         const values: any[] = [];
 
@@ -890,7 +889,7 @@ export const adminUploadBannerImage = async (req: Request, res: Response, next: 
 
 export const adminListBookings = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const page  = Math.max(1, parseInt(req.query.page  as string) || 1);
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
         const offset = (page - 1) * limit;
         const { status, date_from, date_to, agent_id } = req.query;
@@ -898,10 +897,10 @@ export const adminListBookings = async (req: Request, res: Response, next: NextF
         const conditions: string[] = [];
         const params: any[] = [];
 
-        if (status)    { conditions.push('b.status = ?');             params.push(status); }
-        if (agent_id)  { conditions.push('b.agent_id = ?');           params.push(Number(agent_id)); }
-        if (date_from) { conditions.push('b.created_at >= ?');        params.push(date_from); }
-        if (date_to)   { conditions.push('b.created_at <= ?');        params.push(date_to); }
+        if (status) { conditions.push('b.status = ?'); params.push(status); }
+        if (agent_id) { conditions.push('b.agent_id = ?'); params.push(Number(agent_id)); }
+        if (date_from) { conditions.push('b.created_at >= ?'); params.push(date_from); }
+        if (date_to) { conditions.push('b.created_at <= ?'); params.push(date_to); }
 
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -1028,14 +1027,14 @@ export const adminCancelBooking = async (req: Request, res: Response, next: Next
 // ─── Orders (Admin) ───────────────────────────────────────────────────────────
 
 const ORDER_TRANSITIONS: Record<string, string[]> = {
-    'paid':    ['packed', 'cancelled'],
-    'packed':  ['shipped', 'cancelled'],
+    'paid': ['packed', 'cancelled'],
+    'packed': ['shipped', 'cancelled'],
     'shipped': ['delivered'],
 };
 
 export const adminListOrders = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const page  = Math.max(1, parseInt(req.query.page  as string) || 1);
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
         const offset = (page - 1) * limit;
         const { status, payment_status, date_from, date_to } = req.query;
@@ -1043,10 +1042,10 @@ export const adminListOrders = async (req: Request, res: Response, next: NextFun
         const conditions: string[] = [];
         const params: any[] = [];
 
-        if (status)         { conditions.push('o.status = ?');          params.push(status); }
-        if (payment_status) { conditions.push('o.payment_status = ?');  params.push(payment_status); }
-        if (date_from)      { conditions.push('o.created_at >= ?');     params.push(date_from); }
-        if (date_to)        { conditions.push('o.created_at <= ?');     params.push(date_to); }
+        if (status) { conditions.push('o.status = ?'); params.push(status); }
+        if (payment_status) { conditions.push('o.payment_status = ?'); params.push(payment_status); }
+        if (date_from) { conditions.push('o.created_at >= ?'); params.push(date_from); }
+        if (date_to) { conditions.push('o.created_at <= ?'); params.push(date_to); }
 
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
