@@ -1,6 +1,6 @@
-# AquaCare Backend
+# IonCare Backend
 
-Express.js + TypeScript backend for AquaCare mobile application.
+Express.js + TypeScript backend for IonCare mobile application.
 
 ## Setup
 
@@ -16,7 +16,7 @@ Express.js + TypeScript backend for AquaCare mobile application.
     ```
 
 3.  **Database**
-    Ensure MySQL is running and the `aquacare` database exists with the required schema (refer to `Below is a customer-only v1 schema.txt`).
+    Ensure MySQL is running and the `ioncare` database exists with the required schema (refer to `Below is a customer-only v1 schema.txt`).
 
 4.  **Run Development Server**
     ```bash

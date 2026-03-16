@@ -55,6 +55,26 @@ export const getPricingProducts = async (req: Request, res: Response, next: Next
     }
 };
 
+export const getDealerOrders = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const dealerId = getDealerIdFromRequest(req);
+        const result = await DealerService.getOrders(dealerId);
+        return successResponse(res, result);
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getDealerCommissions = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const dealerId = getDealerIdFromRequest(req);
+        const result = await DealerService.getCommissions(dealerId);
+        return successResponse(res, result);
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const getPricingByProductId = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const dealerId = getDealerIdFromRequest(req);

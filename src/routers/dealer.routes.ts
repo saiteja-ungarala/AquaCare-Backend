@@ -13,6 +13,8 @@ router.use(authenticate);
 router.use(requireRole(ROLES.DEALER));
 
 router.get('/me', DealerController.getMe);
+router.get('/orders', DealerController.getDealerOrders);
+router.get('/commissions', DealerController.getDealerCommissions);
 router.post('/kyc', dealerKycUpload.any(), validateUploadedFiles, validate(DealerKycSchema), DealerController.uploadKyc);
 router.patch('/status', validate(DealerStatusPatchSchema), DealerController.patchStatus);
 router.get('/pricing/products', DealerController.getPricingProducts);

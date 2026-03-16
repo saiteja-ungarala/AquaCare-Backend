@@ -27,7 +27,7 @@ export const geocode = async (req: Request, res: Response) => {
         } else {
             const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
             const resp = await fetch(url, {
-                headers: { 'User-Agent': 'AquaCare/1.0' },
+                headers: { 'User-Agent': 'IonCare/1.0' },
             });
             const data = await resp.json() as any;
             if (!data.display_name) {

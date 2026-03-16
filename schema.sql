@@ -1,4 +1,4 @@
--- AquaCare Database Schema
+-- IonCare Database Schema
 -- Run this file to create all required tables
 
 CREATE TABLE IF NOT EXISTS addresses (

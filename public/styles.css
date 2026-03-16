@@ -1,10 +1,12 @@
 /* ========================================
-   AquaCare Login Styles
+   IonCare Login Styles
    Dark Theme with Lifted Shadow Effect
    ======================================== */
 
 /* ========== CSS Reset & Variables ========== */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -15,22 +17,22 @@
   --bg-primary: #0c1f26;
   --bg-secondary: #13323c;
   --bg-card: #1a3e4d;
-  
+
   --accent: #19c3c0;
   --accent-dark: #0d9e9b;
   --accent-light: #4dd4d1;
-  
+
   --text-primary: #ffffff;
   --text-secondary: rgba(255, 255, 255, 0.75);
   --text-muted: rgba(255, 255, 255, 0.5);
-  
+
   --input-bg: #13323c;
   --input-border: #19c3c0;
   --input-shadow: #0d9e9b;
-  
+
   --radius: 0.5rem;
   --radius-lg: 1rem;
-  
+
   /* Transitions */
   --transition: 0.2s ease;
 }
@@ -63,7 +65,7 @@ body {
   background: var(--bg-card);
   border-radius: var(--radius-lg);
   padding: 2.5rem 2rem;
-  box-shadow: 
+  box-shadow:
     0 4px 24px rgba(0, 0, 0, 0.3),
     0 0 0 1px rgba(25, 195, 192, 0.1);
 }
@@ -143,9 +145,9 @@ body {
   border-radius: var(--radius);
   box-shadow: 3px 3px 0 var(--input-shadow);
   outline: none;
-  transition: 
-    box-shadow var(--transition), 
-    border-color var(--transition), 
+  transition:
+    box-shadow var(--transition),
+    border-color var(--transition),
     transform var(--transition);
 }
 
@@ -178,7 +180,7 @@ body {
 .input:-webkit-autofill:hover,
 .input:-webkit-autofill:focus,
 .input:-webkit-autofill:active {
-  -webkit-box-shadow: 
+  -webkit-box-shadow:
     3px 3px 0 var(--input-shadow),
     0 0 0 1000px var(--input-bg) inset !important;
   -webkit-text-fill-color: var(--text-primary) !important;
@@ -187,7 +189,7 @@ body {
 }
 
 .input:focus:-webkit-autofill {
-  -webkit-box-shadow: 
+  -webkit-box-shadow:
     5px 5px 0 var(--accent),
     0 0 0 1000px var(--input-bg) inset !important;
 }
@@ -274,8 +276,8 @@ body {
   border-radius: var(--radius);
   box-shadow: 3px 3px 0 var(--accent-dark);
   cursor: pointer;
-  transition: 
-    box-shadow var(--transition), 
+  transition:
+    box-shadow var(--transition),
     transform var(--transition);
   display: flex;
   align-items: center;
@@ -324,7 +326,9 @@ body {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ========== Divider ========== */
@@ -369,11 +373,11 @@ body {
   .login-card {
     padding: 2rem 1.5rem;
   }
-  
+
   .login-title {
     font-size: 1.5rem;
   }
-  
+
   .form-options {
     flex-direction: column;
     gap: 0.75rem;

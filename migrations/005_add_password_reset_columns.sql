@@ -1,5 +1,5 @@
 -- Migration 005: Add password reset columns to users table
--- Run once against the aquacare database
+-- Run once against the ioncare database
 
 ALTER TABLE users
     ADD COLUMN IF NOT EXISTS reset_token VARCHAR(100) NULL DEFAULT NULL,

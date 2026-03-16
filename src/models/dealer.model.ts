@@ -352,6 +352,17 @@ export const DealerModel = {
         }
     },
 
+    async getDealerCommissions(userId: number): Promise<RowDataPacket[]> {
+        const [rows] = await pool.query<RowDataPacket[]>(
+            `SELECT id, txn_type, source, reference_type, reference_id, amount, description, created_at
+             FROM wallet_transactions
+             WHERE user_id = ? AND source = 'commission'
+             ORDER BY created_at DESC`,
+            [userId]
+        );
+        return rows;
+    },
+
     async reviewDealerKycDocument(
         dealerId: number,
         docId: number,

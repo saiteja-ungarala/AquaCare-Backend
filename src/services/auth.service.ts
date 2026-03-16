@@ -160,7 +160,7 @@ export const AuthService = {
 
         const token = randomBytes(32).toString('hex');
         const hashedToken = createHash('sha256').update(token).digest('hex');
-        const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+        const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes — shorter window reduces exposure
 
         await UserModel.setResetToken(user.id, hashedToken, expires);
 

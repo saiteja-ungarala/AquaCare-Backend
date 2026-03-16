@@ -9,7 +9,7 @@ export const EmailService = {
             .send({
                 to,
                 from: env.FROM_EMAIL,
-                subject: 'Reset your AquaCare password',
+                subject: 'Reset your IonCare password',
                 text: `Click the link below to reset your password. This link expires in 1 hour.\n\n${resetLink}\n\nIf you did not request a password reset, please ignore this email.`,
                 html: `<p>Click the link below to reset your password. This link expires in <strong>1 hour</strong>.</p><p><a href="${resetLink}">${resetLink}</a></p><p>If you did not request a password reset, please ignore this email.</p>`,
             })
@@ -46,8 +46,8 @@ export const EmailService = {
                 to,
                 from: env.FROM_EMAIL,
                 subject: `Service Completed — Booking #${data.bookingId}`,
-                text: `Your service for booking #${data.bookingId} has been completed.\n\nAmount: Rs.${data.amount}\n\nThank you for choosing AquaCare!`,
-                html: `<p>Your service for booking <strong>#${data.bookingId}</strong> has been completed.</p><p><strong>Amount:</strong> Rs.${data.amount}</p><p>Thank you for choosing AquaCare!</p>`,
+                text: `Your service for booking #${data.bookingId} has been completed.\n\nAmount: Rs.${data.amount}\n\nThank you for choosing IonCare!`,
+                html: `<p>Your service for booking <strong>#${data.bookingId}</strong> has been completed.</p><p><strong>Amount:</strong> Rs.${data.amount}</p><p>Thank you for choosing IonCare!</p>`,
             })
             .catch((err) => console.error('[Email] sendBookingCompleted error:', err?.response?.body ?? err));
     },

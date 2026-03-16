@@ -1,4 +1,4 @@
-# AquaCare Backend — API Reference & Integration Guide
+# IonCare Backend — API Reference & Integration Guide
 
 > Base URL (local): `http://localhost:3000/api`
 > All authenticated routes require: `Authorization: Bearer <accessToken>`
@@ -425,7 +425,7 @@ No auth required.
 **Returns:** `{ address: "formatted address string", raw: { ...provider response } }`
 **Behavior:**
 - If `GOOGLE_MAPS_API_KEY` env var is set → uses Google Maps Geocoding API
-- Otherwise → falls back to Nominatim (OpenStreetMap) with `User-Agent: AquaCare/1.0`
+- Otherwise → falls back to Nominatim (OpenStreetMap) with `User-Agent: IonCare/1.0`
 
 **Errors:** `400` invalid coords, `422` address not found, `503` provider unavailable
 

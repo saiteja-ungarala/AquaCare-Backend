@@ -1,7 +1,7 @@
 {
-  "name": "aquacare-backend",
+  "name": "ioncare-backend",
   "version": "1.0.0",
-  "description": "AquaCare Backend Service",
+  "description": "IonCare Backend Service",
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/server.js",

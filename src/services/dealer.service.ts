@@ -1,4 +1,5 @@
 import { DealerModel, DealerPricingRuleRow, DealerProductPricingRow, ProductBasePricingRow } from '../models/dealer.model';
+import { OrderService } from './orders.service';
 
 const DEALER_KYC_DOC_TYPE_ALIASES: Record<string, string> = {
     gst: 'gst_certificate',
@@ -271,6 +272,30 @@ export const DealerService = {
             verification_status: profile.verification_status,
             pricing: buildPricingRow(product, customPricing, fallbackRule),
         };
+    },
+
+    async getOrders(rawDealerId: number) {
+        const dealerId = getDealerId(rawDealerId);
+        const result = await OrderService.getOrders(dealerId, {});
+        return { orders: result.data, pagination: result.pagination };
+    },
+
+    async getCommissions(rawDealerId: number) {
+        const dealerId = getDealerId(rawDealerId);
+        await DealerModel.ensureProfile(dealerId);
+        const rows = await DealerModel.getDealerCommissions(dealerId);
+        const commissions = rows.map((row) => ({
+            id: Number(row.id),
+            type: String(row.reference_type || '').toLowerCase().includes('booking') ? 'service_referral' : 'product_sale',
+            reference_type: String(row.reference_type || ''),
+            reference_id: row.reference_id != null ? Number(row.reference_id) : null,
+            amount: Number(row.amount || 0),
+            description: row.description || null,
+            status: 'paid',
+            created_at: row.created_at,
+        }));
+        const total_amount = commissions.reduce((sum, c) => sum + c.amount, 0);
+        return { total_amount, pending_amount: 0, commissions };
     },
 
     // Optional admin review helpers (no routes wired in current backend).

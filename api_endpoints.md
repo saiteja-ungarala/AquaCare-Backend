@@ -1,4 +1,4 @@
-# AquaCare Backend API Endpoints
+# IonCare Backend API Endpoints
 
 **Base URL:** `http://localhost:3000/api`
 

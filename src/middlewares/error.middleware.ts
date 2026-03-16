@@ -2,8 +2,17 @@ import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { errorResponse } from '../utils/response';
 
+const isProd = process.env.NODE_ENV !== 'development';
+
 export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
-    console.error(err);
+    // Always log the full error server-side for observability
+    console.error('[ErrorHandler]', {
+        method: req.method,
+        path: req.path,
+        status: err.statusCode ?? 500,
+        message: err.message,
+        ...(isProd ? {} : { stack: err.stack }),
+    });
 
     if (err.message === 'CORS') {
         return errorResponse(res, 'CORS', 403);
@@ -21,5 +30,11 @@ export const errorHandler = (err: any, req: Request, res: Response, next: NextFu
         return errorResponse(res, err.message, err.statusCode, err.code ? { code: err.code } : null);
     }
 
-    return errorResponse(res, 'Internal Server Error', 500, err.message);
+    // Never expose internal error details (stack traces, SQL errors, etc.) in production
+    return errorResponse(
+        res,
+        'Internal Server Error',
+        500,
+        isProd ? null : err.message,
+    );
 };

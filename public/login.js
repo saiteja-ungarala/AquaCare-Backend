@@ -1,5 +1,5 @@
 /**
- * AquaCare Login Page JavaScript
+ * IonCare Login Page JavaScript
  * Handles form interactions, validation, and submission
  */
 

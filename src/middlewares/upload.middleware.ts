@@ -19,7 +19,9 @@ const createDiskUpload = (relativeFolder: string) => {
     return multer({
         storage,
         limits: {
-            fileSize: 10 * 1024 * 1024,
+            // Must match MAX_FILE_SIZE_BYTES in upload-validate.middleware.ts (5 MB).
+            // Keeping both aligned prevents files being written to disk only to be rejected.
+            fileSize: 5 * 1024 * 1024,
             files: 10,
         },
     });
