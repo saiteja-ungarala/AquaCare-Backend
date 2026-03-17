@@ -33,6 +33,10 @@ COPY --from=builder /app/dist ./dist
 # Create the uploads directory (needs to exist at runtime)
 RUN mkdir -p uploads/agent-kyc uploads/dealer-kyc uploads/banners uploads/products
 
+# Copy bundled public asset uploads that already exist in the repo
+COPY uploads/banners ./uploads/banners
+COPY uploads/products ./uploads/products
+
 # Copy the public admin panel
 COPY public ./public
 

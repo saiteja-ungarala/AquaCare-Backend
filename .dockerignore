@@ -6,7 +6,11 @@
 node_modules
 dist
 
-uploads
+uploads/*
+!uploads/banners/
+!uploads/banners/**
+!uploads/products/
+!uploads/products/**
 *.log
 
 .git
