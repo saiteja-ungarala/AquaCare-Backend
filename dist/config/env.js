@@ -8,13 +8,19 @@ exports.env = void 0;
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 dotenv_1.default.config({ path: path_1.default.resolve(__dirname, '../../.env') });
-if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET || !process.env.DB_PASSWORD) {
-    throw new Error('Required env vars missing');
-}
-const getRequiredEnv = (key) => {
-    const value = process.env[key];
+const getEnvValue = (...keys) => {
+    for (const key of keys) {
+        const value = process.env[key];
+        if (value) {
+            return value;
+        }
+    }
+    return '';
+};
+const getRequiredEnv = (label, ...keys) => {
+    const value = getEnvValue(...keys);
     if (!value) {
-        throw new Error('Required env vars missing');
+        throw new Error(`Required env var missing: ${label}`);
     }
     return value;
 };
@@ -25,17 +31,17 @@ const getOptionalEnv = (key) => {
     return (_a = process.env[key]) !== null && _a !== void 0 ? _a : '';
 };
 exports.env = {
-    port: Number(getRequiredEnv('PORT')),
+    port: Number(getEnvValue('PORT') || '5000'),
     BASE_SERVER_URL: (_a = process.env.BASE_SERVER_URL) !== null && _a !== void 0 ? _a : '',
-    DB_PORT: Number(getRequiredEnv('DB_PORT')),
-    DB_HOST: getRequiredEnv('DB_HOST'),
-    DB_USER: getRequiredEnv('DB_USER'),
-    DB_PASSWORD: getRequiredEnv('DB_PASSWORD'),
-    DB_NAME: getRequiredEnv('DB_NAME'),
-    JWT_SECRET: getRequiredEnv('JWT_SECRET'),
-    JWT_REFRESH_SECRET: getRequiredEnv('JWT_REFRESH_SECRET'),
-    JWT_ACCESS_EXPIRY: getRequiredEnv('JWT_ACCESS_EXPIRY'),
-    JWT_REFRESH_EXPIRY: getRequiredEnv('JWT_REFRESH_EXPIRY'),
+    DB_PORT: Number(getRequiredEnv('DB_PORT', 'DB_PORT', 'MYSQLPORT')),
+    DB_HOST: getRequiredEnv('DB_HOST', 'DB_HOST', 'MYSQLHOST'),
+    DB_USER: getRequiredEnv('DB_USER', 'DB_USER', 'MYSQLUSER'),
+    DB_PASSWORD: getRequiredEnv('DB_PASSWORD', 'DB_PASSWORD', 'MYSQLPASSWORD'),
+    DB_NAME: getRequiredEnv('DB_NAME', 'DB_NAME', 'MYSQLDATABASE'),
+    JWT_SECRET: getRequiredEnv('JWT_SECRET', 'JWT_SECRET'),
+    JWT_REFRESH_SECRET: getRequiredEnv('JWT_REFRESH_SECRET', 'JWT_REFRESH_SECRET'),
+    JWT_ACCESS_EXPIRY: getRequiredEnv('JWT_ACCESS_EXPIRY', 'JWT_ACCESS_EXPIRY'),
+    JWT_REFRESH_EXPIRY: getRequiredEnv('JWT_REFRESH_EXPIRY', 'JWT_REFRESH_EXPIRY'),
     NODE_ENV: (_b = process.env.NODE_ENV) !== null && _b !== void 0 ? _b : 'production',
     // ── Third-party keys (optional until configured in hosting platform) ─────
     RAZORPAY_KEY_ID: getOptionalEnv('RAZORPAY_KEY_ID'),
