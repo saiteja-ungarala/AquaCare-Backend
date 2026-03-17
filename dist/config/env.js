@@ -8,6 +8,8 @@ exports.env = void 0;
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 dotenv_1.default.config({ path: path_1.default.resolve(__dirname, '../../.env') });
+const connectionUrl = process.env.MYSQL_URL || process.env.DATABASE_URL || '';
+const parsedConnectionUrl = connectionUrl ? new URL(connectionUrl) : null;
 const getEnvValue = (...keys) => {
     for (const key of keys) {
         const value = process.env[key];
@@ -17,8 +19,18 @@ const getEnvValue = (...keys) => {
     }
     return '';
 };
-const getRequiredEnv = (label, ...keys) => {
-    const value = getEnvValue(...keys);
+const getConnectionUrlValue = (field) => {
+    var _a;
+    if (!parsedConnectionUrl) {
+        return '';
+    }
+    if (field === 'pathname') {
+        return parsedConnectionUrl.pathname.replace(/^\/+/, '');
+    }
+    return (_a = parsedConnectionUrl[field]) !== null && _a !== void 0 ? _a : '';
+};
+const getRequiredResolvedValue = (label, directValue, fallbackValue = '') => {
+    const value = directValue || fallbackValue;
     if (!value) {
         throw new Error(`Required env var missing: ${label}`);
     }
@@ -33,15 +45,15 @@ const getOptionalEnv = (key) => {
 exports.env = {
     port: Number(getEnvValue('PORT') || '5000'),
     BASE_SERVER_URL: (_a = process.env.BASE_SERVER_URL) !== null && _a !== void 0 ? _a : '',
-    DB_PORT: Number(getRequiredEnv('DB_PORT', 'DB_PORT', 'MYSQLPORT')),
-    DB_HOST: getRequiredEnv('DB_HOST', 'DB_HOST', 'MYSQLHOST'),
-    DB_USER: getRequiredEnv('DB_USER', 'DB_USER', 'MYSQLUSER'),
-    DB_PASSWORD: getRequiredEnv('DB_PASSWORD', 'DB_PASSWORD', 'MYSQLPASSWORD'),
-    DB_NAME: getRequiredEnv('DB_NAME', 'DB_NAME', 'MYSQLDATABASE'),
-    JWT_SECRET: getRequiredEnv('JWT_SECRET', 'JWT_SECRET'),
-    JWT_REFRESH_SECRET: getRequiredEnv('JWT_REFRESH_SECRET', 'JWT_REFRESH_SECRET'),
-    JWT_ACCESS_EXPIRY: getRequiredEnv('JWT_ACCESS_EXPIRY', 'JWT_ACCESS_EXPIRY'),
-    JWT_REFRESH_EXPIRY: getRequiredEnv('JWT_REFRESH_EXPIRY', 'JWT_REFRESH_EXPIRY'),
+    DB_PORT: Number(getRequiredResolvedValue('DB_PORT', getEnvValue('DB_PORT', 'MYSQLPORT'), getConnectionUrlValue('port'))),
+    DB_HOST: getRequiredResolvedValue('DB_HOST', getEnvValue('DB_HOST', 'MYSQLHOST'), getConnectionUrlValue('hostname')),
+    DB_USER: getRequiredResolvedValue('DB_USER', getEnvValue('DB_USER', 'MYSQLUSER'), decodeURIComponent(getConnectionUrlValue('username'))),
+    DB_PASSWORD: getRequiredResolvedValue('DB_PASSWORD', getEnvValue('DB_PASSWORD', 'MYSQLPASSWORD'), decodeURIComponent(getConnectionUrlValue('password'))),
+    DB_NAME: getRequiredResolvedValue('DB_NAME', getEnvValue('DB_NAME', 'MYSQLDATABASE'), decodeURIComponent(getConnectionUrlValue('pathname'))),
+    JWT_SECRET: getRequiredResolvedValue('JWT_SECRET', getEnvValue('JWT_SECRET')),
+    JWT_REFRESH_SECRET: getRequiredResolvedValue('JWT_REFRESH_SECRET', getEnvValue('JWT_REFRESH_SECRET')),
+    JWT_ACCESS_EXPIRY: getRequiredResolvedValue('JWT_ACCESS_EXPIRY', getEnvValue('JWT_ACCESS_EXPIRY')),
+    JWT_REFRESH_EXPIRY: getRequiredResolvedValue('JWT_REFRESH_EXPIRY', getEnvValue('JWT_REFRESH_EXPIRY')),
     NODE_ENV: (_b = process.env.NODE_ENV) !== null && _b !== void 0 ? _b : 'production',
     // ── Third-party keys (optional until configured in hosting platform) ─────
     RAZORPAY_KEY_ID: getOptionalEnv('RAZORPAY_KEY_ID'),
