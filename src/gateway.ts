@@ -9,6 +9,7 @@ import { errorHandler } from './middlewares/error.middleware';
 const app = express();
 app.set('trust proxy', 1);
 const ALLOWED = (process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean);
+const isExpoDevOrigin = (origin: string): boolean => origin.startsWith('exp://');
 
 // ── Rate-limiter factory ────────────────────────────────────────────────────
 const createPostRateLimiter = (windowMs: number, max: number, message: string) => rateLimit({
@@ -54,7 +55,7 @@ app.use(helmet({
 // ── CORS ────────────────────────────────────────────────────────────────────
 // Note: !origin is intentional — native mobile clients do not send an Origin header.
 app.use(cors({
-    origin: (origin, cb) => (!origin || ALLOWED.includes(origin)) ? cb(null, true) : cb(new Error('CORS')),
+    origin: (origin, cb) => (!origin || ALLOWED.includes(origin) || isExpoDevOrigin(origin)) ? cb(null, true) : cb(new Error('CORS')),
     credentials: true,
 }));
 
