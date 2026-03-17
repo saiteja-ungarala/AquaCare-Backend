@@ -19,6 +19,7 @@ const booking_update_model_1 = require("../models/booking-update.model");
 const service_model_1 = require("../models/service.model");
 const address_model_1 = require("../models/address.model");
 const user_model_1 = require("../models/user.model");
+const wallet_model_1 = require("../models/wallet.model");
 const email_service_1 = require("./email.service");
 const notification_service_1 = require("./notification.service");
 const constants_1 = require("../config/constants");
@@ -121,17 +122,41 @@ exports.BookingService = {
             return booking_update_model_1.BookingUpdateModel.findByBookingId(bookingId);
         });
     },
-    cancelBooking(userId, bookingId) {
+    cancelBooking(userId, bookingId, reason) {
         return __awaiter(this, void 0, void 0, function* () {
+            if (!(reason === null || reason === void 0 ? void 0 : reason.trim())) {
+                throw { type: 'AppError', message: 'Cancellation reason is required', statusCode: 400 };
+            }
             const booking = yield booking_model_1.BookingModel.findById(bookingId);
             if (!booking)
                 throw { type: 'AppError', message: 'Booking not found', statusCode: 404 };
-            if (booking.user_id !== userId)
-                throw { type: 'AppError', message: 'Unauthorized', statusCode: 403 };
+            if (Number(booking.user_id) !== userId)
+                throw { type: 'AppError', message: 'Forbidden', statusCode: 403 };
             if (booking.status !== 'pending' && booking.status !== 'confirmed') {
-                throw { type: 'AppError', message: 'Cannot cancel booking in current status', statusCode: 400 };
+                throw { type: 'AppError', message: 'Cannot cancel a booking that is already assigned/in_progress/completed/cancelled', statusCode: 400 };
             }
-            yield booking_model_1.BookingModel.updateStatus(bookingId, 'cancelled');
+            // Cancel the booking and record the reason
+            yield db_1.default.query(`UPDATE bookings
+             SET status = 'cancelled', cancel_reason = ?, cancelled_by = ?, cancelled_at = NOW()
+             WHERE id = ?`, [reason.trim(), userId, bookingId]);
+            // Refund if a paid Razorpay payment exists for this booking
+            let refunded = false;
+            let refundAmount = 0;
+            const [payRows] = yield db_1.default.query(`SELECT id, amount FROM payments
+             WHERE entity_type = 'booking' AND entity_id = ? AND status = 'paid'
+             LIMIT 1`, [bookingId]);
+            if (payRows.length > 0) {
+                refundAmount = Number(payRows[0].amount);
+                yield db_1.default.query(`UPDATE payments SET status = 'refunded' WHERE id = ?`, [payRows[0].id]);
+                yield wallet_model_1.WalletModel.creditWithIdempotency(userId, {
+                    amount: refundAmount,
+                    txn_type: 'credit',
+                    source: 'refund',
+                    idempotency_key: `booking_cancel:${bookingId}`,
+                });
+                refunded = true;
+            }
+            return { success: true, refunded, refund_amount: refundAmount };
         });
     }
 };

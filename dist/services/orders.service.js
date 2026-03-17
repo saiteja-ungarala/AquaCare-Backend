@@ -124,6 +124,39 @@ exports.OrderService = {
             return mapOrderDetail(order);
         });
     },
+    cancelOrder(userId, orderId, reason) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!(reason === null || reason === void 0 ? void 0 : reason.trim())) {
+                throw { type: 'AppError', message: 'Cancellation reason is required', statusCode: 400 };
+            }
+            const order = yield order_model_1.OrderModel.findById(orderId);
+            if (!order)
+                throw { type: 'AppError', message: 'Order not found', statusCode: 404 };
+            if (Number(order.user_id) !== userId)
+                throw { type: 'AppError', message: 'Forbidden', statusCode: 403 };
+            if (order.status !== 'pending' && order.status !== 'paid') {
+                throw { type: 'AppError', message: 'Cannot cancel an order that is already packed/shipped/delivered/cancelled', statusCode: 400 };
+            }
+            // Cancel the order and record reason
+            yield db_1.default.query(`UPDATE orders
+             SET status = 'cancelled', cancel_reason = ?, cancelled_by = ?, cancelled_at = NOW()
+             WHERE id = ?`, [reason.trim(), userId, orderId]);
+            // Refund to wallet if the order was already paid
+            let refunded = false;
+            let refundAmount = 0;
+            if (order.payment_status === 'paid') {
+                refundAmount = Number(order.total_amount);
+                yield wallet_model_1.WalletModel.creditWithIdempotency(userId, {
+                    amount: refundAmount,
+                    txn_type: 'credit',
+                    source: 'refund',
+                    idempotency_key: `order_cancel:${orderId}`,
+                });
+                refunded = true;
+            }
+            return { success: true, refunded, refund_amount: refundAmount };
+        });
+    },
     checkout(userId, data) {
         return __awaiter(this, void 0, void 0, function* () {
             // 1. Validate Address

@@ -38,8 +38,9 @@ const cancelBooking = (req, res, next) => __awaiter(void 0, void 0, void 0, func
     try {
         const userId = req.user.id;
         const bookingId = Number(req.params.id);
-        yield bookings_service_1.BookingService.cancelBooking(userId, bookingId);
-        return (0, response_1.successResponse)(res, null, 'Booking cancelled');
+        const { reason } = req.body;
+        const result = yield bookings_service_1.BookingService.cancelBooking(userId, bookingId, reason);
+        return (0, response_1.successResponse)(res, result, 'Booking cancelled');
     }
     catch (error) {
         next(error);

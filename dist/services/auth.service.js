@@ -67,8 +67,11 @@ exports.AuthService = {
             if (!user) {
                 throw { type: 'AppError', message: 'User not found', statusCode: 404 };
             }
-            // Enforce selected role login. If mismatch, do not allow cross-role login.
-            if (role && user.role !== role) {
+            // Enforce selected role login. Admin is allowed only through agent entry.
+            const roleAllowed = role === 'agent'
+                ? user.role === 'agent' || user.role === 'admin'
+                : user.role === role;
+            if (!roleAllowed) {
                 throw { type: 'AppError', message: 'Credentials not found', statusCode: 404 };
             }
             // Wrong password - return 401
@@ -154,10 +157,10 @@ exports.AuthService = {
         return __awaiter(this, void 0, void 0, function* () {
             const user = yield user_model_1.UserModel.findByEmail(email);
             if (!user || !user.id)
-                return; // silently do nothing if not found
+                return;
             const token = (0, crypto_1.randomBytes)(32).toString('hex');
             const hashedToken = (0, crypto_1.createHash)('sha256').update(token).digest('hex');
-            const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+            const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes — shorter window reduces exposure
             yield user_model_1.UserModel.setResetToken(user.id, hashedToken, expires);
             const resetLink = `${env_1.env.BASE_SERVER_URL}/reset-password?token=${token}`;
             email_service_1.EmailService.sendPasswordReset(email, resetLink); // fire-and-forget

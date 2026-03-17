@@ -18,6 +18,12 @@ const getRequiredEnv = (key) => {
     }
     return value;
 };
+// Returns the env var value, or an empty string if not set.
+// Used for third-party API keys that are temporarily disabled.
+const getOptionalEnv = (key) => {
+    var _a;
+    return (_a = process.env[key]) !== null && _a !== void 0 ? _a : '';
+};
 exports.env = {
     port: Number(getRequiredEnv('PORT')),
     BASE_SERVER_URL: (_a = process.env.BASE_SERVER_URL) !== null && _a !== void 0 ? _a : '',
@@ -31,11 +37,12 @@ exports.env = {
     JWT_ACCESS_EXPIRY: getRequiredEnv('JWT_ACCESS_EXPIRY'),
     JWT_REFRESH_EXPIRY: getRequiredEnv('JWT_REFRESH_EXPIRY'),
     NODE_ENV: (_b = process.env.NODE_ENV) !== null && _b !== void 0 ? _b : 'production',
-    RAZORPAY_KEY_ID: getRequiredEnv('RAZORPAY_KEY_ID'),
-    RAZORPAY_KEY_SECRET: getRequiredEnv('RAZORPAY_KEY_SECRET'),
-    RAZORPAY_WEBHOOK_SECRET: getRequiredEnv('RAZORPAY_WEBHOOK_SECRET'),
-    FAST2SMS_API_KEY: getRequiredEnv('FAST2SMS_API_KEY'),
-    SENDGRID_API_KEY: getRequiredEnv('SENDGRID_API_KEY'),
-    FROM_EMAIL: getRequiredEnv('FROM_EMAIL'),
+    // ── Third-party keys (optional until configured in hosting platform) ─────
+    RAZORPAY_KEY_ID: getOptionalEnv('RAZORPAY_KEY_ID'),
+    RAZORPAY_KEY_SECRET: getOptionalEnv('RAZORPAY_KEY_SECRET'),
+    RAZORPAY_WEBHOOK_SECRET: getOptionalEnv('RAZORPAY_WEBHOOK_SECRET'),
+    FAST2SMS_API_KEY: getOptionalEnv('FAST2SMS_API_KEY'),
+    SENDGRID_API_KEY: getOptionalEnv('SENDGRID_API_KEY'),
+    FROM_EMAIL: getOptionalEnv('FROM_EMAIL'),
     GOOGLE_MAPS_API_KEY: (_c = process.env.GOOGLE_MAPS_API_KEY) !== null && _c !== void 0 ? _c : '',
 };

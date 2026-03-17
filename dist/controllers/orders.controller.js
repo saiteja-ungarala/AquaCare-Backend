@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.checkout = exports.getOrderById = exports.getOrders = void 0;
+exports.cancelOrder = exports.checkout = exports.getOrderById = exports.getOrders = void 0;
 const orders_service_1 = require("../services/orders.service");
 const response_1 = require("../utils/response");
 const getOrders = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
@@ -46,3 +46,16 @@ const checkout = (req, res, next) => __awaiter(void 0, void 0, void 0, function*
     }
 });
 exports.checkout = checkout;
+const cancelOrder = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const userId = req.user.id;
+        const orderId = Number(req.params.id);
+        const { reason } = req.body;
+        const result = yield orders_service_1.OrderService.cancelOrder(userId, orderId, reason);
+        return (0, response_1.successResponse)(res, result, 'Order cancelled');
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.cancelOrder = cancelOrder;

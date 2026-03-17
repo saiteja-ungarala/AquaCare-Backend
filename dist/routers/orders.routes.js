@@ -41,6 +41,7 @@ const OrderController = __importStar(require("../controllers/orders.controller")
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.authenticate);
 router.get('/', OrderController.getOrders);
-router.get('/:id', OrderController.getOrderById);
 router.post('/checkout', (0, validate_middleware_1.validate)(order_dto_1.CheckoutSchema), OrderController.checkout);
+router.post('/:id/cancel', OrderController.cancelOrder);
+router.get('/:id', OrderController.getOrderById);
 exports.default = router;

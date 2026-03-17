@@ -21,6 +21,7 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV PORT=5000
 
 # Copy manifests and install PRODUCTION deps only
 COPY package.json package-lock.json ./
@@ -30,10 +31,10 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 
 # Create the uploads directory (needs to exist at runtime)
-RUN mkdir -p uploads/agent-kyc uploads/dealer-kyc uploads/banners
+RUN mkdir -p uploads/agent-kyc uploads/dealer-kyc uploads/banners uploads/products
 
-# Copy the public admin panel if it exists
-COPY public ./public 2>/dev/null || true
+# Copy the public admin panel
+COPY public ./public
 
 # Do NOT copy .env — secrets must be injected by the container platform at runtime.
 # dotenv.config() will silently skip loading if .env is absent; process.env values
