@@ -27,7 +27,12 @@ export const errorHandler = (err: any, req: Request, res: Response, next: NextFu
     }
 
     if (err.type === 'AppError') {
-        return errorResponse(res, err.message, err.statusCode, err.code ? { code: err.code } : null);
+        return errorResponse(
+            res,
+            err.message,
+            err.statusCode,
+            err.details ?? (err.code ? { code: err.code } : null),
+        );
     }
 
     // Never expose internal error details (stack traces, SQL errors, etc.) in production

@@ -5,10 +5,12 @@ import { NextFunction, Request, Response } from 'express';
 import * as fileType from 'file-type';
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
-const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'application/pdf']);
+const DEFAULT_ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'application/pdf']);
+const BANNER_ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MIME_EXTENSION_MAP: Record<string, string> = {
     'image/jpeg': '.jpg',
     'image/png': '.png',
+    'image/webp': '.webp',
     'application/pdf': '.pdf',
 };
 
@@ -46,7 +48,7 @@ const cleanupUploadedFiles = (files: Express.Multer.File[]) => {
     }
 };
 
-export const validateUploadedFiles = async (req: Request, _res: Response, next: NextFunction) => {
+const createUploadValidator = (allowedMimeTypes: ReadonlySet<string>) => async (req: Request, _res: Response, next: NextFunction) => {
     const files = getUploadedFiles(req);
     if (files.length === 0) {
         return next();
@@ -62,7 +64,7 @@ export const validateUploadedFiles = async (req: Request, _res: Response, next: 
             const fileBuffer = fs.readFileSync(file.path);
             const detectedType = await fileType.fromBuffer(fileBuffer);
 
-            if (!detectedType || !ALLOWED_MIME_TYPES.has(detectedType.mime)) {
+            if (!detectedType || !allowedMimeTypes.has(detectedType.mime)) {
                 deleteFileIfExists(file.path);
                 throw toAppError('Invalid file type');
             }
@@ -87,3 +89,6 @@ export const validateUploadedFiles = async (req: Request, _res: Response, next: 
         return next(toAppError('Invalid file upload'));
     }
 };
+
+export const validateUploadedFiles = createUploadValidator(DEFAULT_ALLOWED_MIME_TYPES);
+export const validateBannerUploadedFiles = createUploadValidator(BANNER_ALLOWED_MIME_TYPES);

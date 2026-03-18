@@ -9,11 +9,37 @@ import { SmsService } from './sms.service';
 import { EmailService } from './email.service';
 import { env } from '../config/env';
 
+const createAppError = (
+    message: string,
+    statusCode: number,
+    details?: Array<{ field: string; message: string }>
+) => ({
+    type: 'AppError',
+    message,
+    statusCode,
+    details,
+});
+
 export const AuthService = {
     async signup(data: User): Promise<any> {
         const existingUser = await UserModel.findByEmail(data.email);
         if (existingUser) {
-            throw { type: 'AppError', message: 'Email already exists', statusCode: 409 };
+            throw createAppError(
+                'This email is already registered. Please log in.',
+                409,
+                [{ field: 'email', message: 'This email is already registered.' }],
+            );
+        }
+
+        if (data.phone) {
+            const existingPhoneUser = await UserModel.findByPhone(data.phone);
+            if (existingPhoneUser) {
+                throw createAppError(
+                    'This phone number is already registered. Please log in.',
+                    409,
+                    [{ field: 'phone', message: 'This phone number is already registered.' }],
+                );
+            }
         }
 
         const hashedPassword = await bcrypt.hash(data.password_hash, 10);
@@ -42,24 +68,33 @@ export const AuthService = {
     async login(email: string, password: string, role: 'customer' | 'agent' | 'dealer'): Promise<any> {
         const user = await UserModel.findByEmail(email);
 
-        // User not found - return 404
         if (!user) {
-            throw { type: 'AppError', message: 'User not found', statusCode: 404 };
+            throw createAppError(
+                'Account not found. Please sign up.',
+                404,
+                [{ field: 'email', message: 'No account found with this email.' }],
+            );
         }
 
-        // Enforce selected role login. Admin is allowed only through agent entry.
         const roleAllowed =
             role === 'agent'
                 ? user.role === 'agent' || user.role === 'admin'
                 : user.role === role;
         if (!roleAllowed) {
-            throw { type: 'AppError', message: 'Credentials not found', statusCode: 404 };
+            throw createAppError(
+                `No ${role} account found with this email.`,
+                404,
+                [{ field: 'email', message: `No ${role} account found with this email.` }],
+            );
         }
 
-        // Wrong password - return 401
         const isPasswordValid = await bcrypt.compare(password, user.password_hash);
         if (!isPasswordValid) {
-            throw { type: 'AppError', message: 'Invalid password', statusCode: 401 };
+            throw createAppError(
+                'Incorrect password. Please try again.',
+                401,
+                [{ field: 'password', message: 'Incorrect password. Please try again.' }],
+            );
         }
 
         const tokens = await this.generateTokens(user);
@@ -115,8 +150,12 @@ export const AuthService = {
     },
 
     async sendOTP(phone: string): Promise<void> {
-        if (!/^\d{10}$/.test(phone)) {
-            throw { type: 'AppError', message: 'Phone number must be exactly 10 digits', statusCode: 400 };
+        if (!/^[6-9]\d{9}$/.test(phone)) {
+            throw createAppError(
+                'Enter a valid 10-digit Indian mobile number.',
+                400,
+                [{ field: 'phone', message: 'Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.' }],
+            );
         }
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -132,15 +171,27 @@ export const AuthService = {
         const record = await OtpModel.findLatestByPhone(phone);
 
         if (!record || record.verified) {
-            throw { type: 'AppError', message: 'OTP not found. Request a new one.', statusCode: 400 };
+            throw createAppError(
+                'OTP not found. Request a new one.',
+                400,
+                [{ field: 'otp', message: 'OTP not found. Request a new one.' }],
+            );
         }
 
         if (record.expires_at < new Date()) {
-            throw { type: 'AppError', message: 'OTP expired. Request a new one.', statusCode: 400 };
+            throw createAppError(
+                'OTP expired. Request a new one.',
+                400,
+                [{ field: 'otp', message: 'OTP expired. Request a new one.' }],
+            );
         }
 
         if (record.attempts >= 5) {
-            throw { type: 'AppError', message: 'Too many attempts. Request new OTP.', statusCode: 429 };
+            throw createAppError(
+                'Too many attempts. Request a new OTP.',
+                429,
+                [{ field: 'otp', message: 'Too many attempts. Request a new OTP.' }],
+            );
         }
 
         const isMatch = await bcrypt.compare(otp, record.otp_hash);
@@ -185,12 +236,20 @@ export const AuthService = {
         const isValid = await this.verifyOTP(phone, otp);
 
         if (!isValid) {
-            throw { type: 'AppError', message: 'Invalid OTP', statusCode: 400 };
+            throw createAppError(
+                'Invalid OTP. Please try again.',
+                400,
+                [{ field: 'otp', message: 'Invalid OTP. Please try again.' }],
+            );
         }
 
         const user = await UserModel.findByPhone(phone);
         if (!user) {
-            throw { type: 'AppError', message: 'No account found for this phone number', statusCode: 404 };
+            throw createAppError(
+                'No account found for this phone number.',
+                404,
+                [{ field: 'phone', message: 'No account found for this phone number.' }],
+            );
         }
 
         const tokens = await this.generateTokens(user);

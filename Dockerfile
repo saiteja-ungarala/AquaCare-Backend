@@ -34,11 +34,13 @@ COPY --from=builder /app/dist ./dist
 RUN mkdir -p uploads/agent-kyc uploads/dealer-kyc uploads/banners uploads/products
 
 # Copy bundled public asset uploads that already exist in the repo
-COPY uploads/banners ./uploads/banners
-COPY uploads/products ./uploads/products
+COPY uploads/banners ./seed-uploads/banners
+COPY uploads/products ./seed-uploads/products
 
 # Copy the public admin panel
 COPY public ./public
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
 
 # Do NOT copy .env — secrets must be injected by the container platform at runtime.
 # dotenv.config() will silently skip loading if .env is absent; process.env values
@@ -46,4 +48,5 @@ COPY public ./public
 
 EXPOSE 5000
 
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "dist/server.js"]

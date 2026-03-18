@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.middleware';
 import { requireAdmin } from '../middlewares/admin.middleware';
 import { bannerUpload } from '../middlewares/upload.middleware';
-import { validateUploadedFiles } from '../middlewares/upload-validate.middleware';
+import { validateBannerUploadedFiles } from '../middlewares/upload-validate.middleware';
 import * as AdminController from '../controllers/admin.controller';
 
 const router = Router();
@@ -68,7 +68,7 @@ router.patch('/orders/:id/status',   AdminController.adminUpdateOrderStatus);
 
 // Banners — static sub-paths before /:id to avoid param capture
 router.get('/banners',                AdminController.adminListBanners);
-router.post('/banners/upload-image',  bannerUpload.single('image'), validateUploadedFiles, AdminController.adminUploadBannerImage);
+router.post('/banners/upload-image',  bannerUpload.single('image'), validateBannerUploadedFiles, AdminController.adminUploadBannerImage);
 router.post('/banners',               AdminController.adminCreateBanner);
 router.patch('/banners/reorder',      AdminController.adminReorderBanners);
 router.patch('/banners/:id',          AdminController.adminUpdateBanner);

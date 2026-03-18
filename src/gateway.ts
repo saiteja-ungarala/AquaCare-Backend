@@ -5,6 +5,7 @@ import path from 'path';
 import rateLimit from 'express-rate-limit';
 import routes from './routers';
 import { errorHandler } from './middlewares/error.middleware';
+import { errorResponse } from './utils/response';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -12,13 +13,17 @@ const ALLOWED = (process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => o
 const isExpoDevOrigin = (origin: string): boolean => origin.startsWith('exp://');
 
 // ── Rate-limiter factory ────────────────────────────────────────────────────
+const createRateLimitHandler = (message: string) => (req: express.Request, res: express.Response) => {
+    return errorResponse(res, message, 429);
+};
+
 const createPostRateLimiter = (windowMs: number, max: number, message: string) => rateLimit({
     windowMs,
     max,
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => req.method !== 'POST',
-    message: { error: message },
+    handler: createRateLimitHandler(message),
 });
 
 const createRateLimiter = (windowMs: number, max: number, message: string) => rateLimit({
@@ -26,7 +31,7 @@ const createRateLimiter = (windowMs: number, max: number, message: string) => ra
     max,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: message },
+    handler: createRateLimitHandler(message),
 });
 
 // Auth — existing
