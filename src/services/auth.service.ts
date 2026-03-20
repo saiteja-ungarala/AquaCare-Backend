@@ -211,12 +211,12 @@ export const AuthService = {
 
         const token = randomBytes(32).toString('hex');
         const hashedToken = createHash('sha256').update(token).digest('hex');
-        const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes — shorter window reduces exposure
+        const expires = new Date(Date.now() + 15 * 60 * 1000);
 
         await UserModel.setResetToken(user.id, hashedToken, expires);
 
         const resetLink = `${env.BASE_SERVER_URL}/reset-password?token=${token}`;
-        EmailService.sendPasswordReset(email, resetLink); // fire-and-forget
+        await EmailService.sendPasswordReset(email, resetLink);
     },
 
     async resetPassword(token: string, newPassword: string): Promise<void> {
@@ -256,3 +256,4 @@ export const AuthService = {
         return { user: this.sanitizeUser(user), ...tokens };
     },
 };
+

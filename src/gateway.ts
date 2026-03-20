@@ -3,97 +3,151 @@ import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
-import routes from './routers';
+import { ResetPasswordSchema } from './dto/auth.dto';
 import { errorHandler } from './middlewares/error.middleware';
+import routes from './routers';
+import { AuthService } from './services/auth.service';
+import { renderResetPasswordPage } from './utils/resetPasswordPage';
 import { errorResponse } from './utils/response';
 
 const app = express();
 app.set('trust proxy', 1);
-const ALLOWED = (process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean);
+
+const ALLOWED = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
 const isExpoDevOrigin = (origin: string): boolean => origin.startsWith('exp://');
 
-// ── Rate-limiter factory ────────────────────────────────────────────────────
-const createRateLimitHandler = (message: string) => (req: express.Request, res: express.Response) => {
+const createRateLimitHandler = (message: string) => (_req: express.Request, res: express.Response) => {
     return errorResponse(res, message, 429);
 };
 
-const createPostRateLimiter = (windowMs: number, max: number, message: string) => rateLimit({
-    windowMs,
-    max,
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => req.method !== 'POST',
-    handler: createRateLimitHandler(message),
-});
+const createPostRateLimiter = (windowMs: number, max: number, message: string) =>
+    rateLimit({
+        windowMs,
+        max,
+        standardHeaders: true,
+        legacyHeaders: false,
+        skip: (req) => req.method !== 'POST',
+        handler: createRateLimitHandler(message),
+    });
 
-const createRateLimiter = (windowMs: number, max: number, message: string) => rateLimit({
-    windowMs,
-    max,
-    standardHeaders: true,
-    legacyHeaders: false,
-    handler: createRateLimitHandler(message),
-});
+const createRateLimiter = (windowMs: number, max: number, message: string) =>
+    rateLimit({
+        windowMs,
+        max,
+        standardHeaders: true,
+        legacyHeaders: false,
+        handler: createRateLimitHandler(message),
+    });
 
-// Auth — existing
-const authLoginLimiter   = createPostRateLimiter(15 * 60 * 1000, 5,  'Too many login attempts. Please try again later.');
-const authSignupLimiter  = createPostRateLimiter(60 * 60 * 1000, 10, 'Too many signup attempts. Please try again later.');
-const authSendOtpLimiter = createPostRateLimiter(60 * 60 * 1000, 3,  'Too many OTP requests. Please try again later.');
-const kycUploadLimiter   = createPostRateLimiter(60 * 60 * 1000, 10, 'Too many KYC upload attempts. Please try again later.');
+const authLoginLimiter = createPostRateLimiter(15 * 60 * 1000, 5, 'Too many login attempts. Please try again later.');
+const authSignupLimiter = createPostRateLimiter(60 * 60 * 1000, 10, 'Too many signup attempts. Please try again later.');
+const authSendOtpLimiter = createPostRateLimiter(60 * 60 * 1000, 3, 'Too many OTP requests. Please try again later.');
+const kycUploadLimiter = createPostRateLimiter(60 * 60 * 1000, 10, 'Too many KYC upload attempts. Please try again later.');
+const authRefreshLimiter = createRateLimiter(15 * 60 * 1000, 20, 'Too many token refresh requests. Please try again later.');
+const authForgotPasswordLimiter = createRateLimiter(60 * 60 * 1000, 5, 'Too many password reset requests. Please try again later.');
+const authResetPasswordLimiter = createRateLimiter(60 * 60 * 1000, 10, 'Too many password reset attempts. Please try again later.');
 
-// Auth — new hardening
-const authRefreshLimiter       = createRateLimiter(15 * 60 * 1000, 20, 'Too many token refresh requests. Please try again later.');
-const authForgotPasswordLimiter = createRateLimiter(60 * 60 * 1000, 5,  'Too many password reset requests. Please try again later.');
-const authResetPasswordLimiter  = createRateLimiter(60 * 60 * 1000, 10, 'Too many password reset attempts. Please try again later.');
-
-// ── Security headers ────────────────────────────────────────────────────────
-app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            imgSrc: ["'self'", 'data:', 'https:'],
+app.use(
+    helmet({
+        contentSecurityPolicy: {
+            directives: {
+                defaultSrc: ["'self'"],
+                imgSrc: ["'self'", 'data:', 'https:'],
+            },
         },
-    },
-    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-}));
+        hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+        crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+);
 
-// ── CORS ────────────────────────────────────────────────────────────────────
-// Note: !origin is intentional — native mobile clients do not send an Origin header.
-app.use(cors({
-    origin: (origin, cb) => (!origin || ALLOWED.includes(origin) || isExpoDevOrigin(origin)) ? cb(null, true) : cb(new Error('CORS')),
-    credentials: true,
-}));
+app.use(
+    cors({
+        origin: (origin, cb) =>
+            !origin || ALLOWED.includes(origin) || isExpoDevOrigin(origin)
+                ? cb(null, true)
+                : cb(new Error('CORS')),
+        credentials: true,
+    })
+);
 
-// ── Body parsers with strict size limits ───────────────────────────────────
-// 50 KB is generous for all API payloads; prevents memory-exhaustion via large bodies.
 app.use(express.json({ limit: '50kb' }));
 app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 
-// ── Static files ────────────────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, '../public')));
 app.use('/admin', express.static(path.join(__dirname, '../public')));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// ── Health check ────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// ── Rate limiters ───────────────────────────────────────────────────────────
-// Auth — existing
-app.use('/api/auth/login',    authLoginLimiter);
-app.use('/api/auth/signup',   authSignupLimiter);
+app.get('/reset-password', (req, res) => {
+    const token = String(req.query.token || '').trim();
+
+    res
+        .status(token ? 200 : 400)
+        .type('html')
+        .send(
+            renderResetPasswordPage({
+                token,
+                error: token ? null : 'This reset link is invalid or incomplete.',
+            })
+        );
+});
+
+app.post('/reset-password', async (req, res) => {
+    const token = String(req.body?.token || '').trim();
+    const newPassword = String(req.body?.newPassword || '');
+    const parsed = ResetPasswordSchema.safeParse({ body: { token, newPassword } });
+
+    if (!parsed.success) {
+        return res
+            .status(400)
+            .type('html')
+            .send(
+                renderResetPasswordPage({
+                    token,
+                    error: parsed.error.errors[0]?.message || 'Please enter a valid password.',
+                })
+            );
+    }
+
+    try {
+        await AuthService.resetPassword(parsed.data.body.token, parsed.data.body.newPassword);
+        return res
+            .status(200)
+            .type('html')
+            .send(
+                renderResetPasswordPage({
+                    success: true,
+                    message: 'Password reset successful. You can now log in from the app.',
+                })
+            );
+    } catch (error: any) {
+        return res
+            .status(Number(error?.statusCode || 400))
+            .type('html')
+            .send(
+                renderResetPasswordPage({
+                    token,
+                    error: String(error?.message || 'Unable to reset password right now.'),
+                })
+            );
+    }
+});
+
+app.use('/api/auth/login', authLoginLimiter);
+app.use('/api/auth/signup', authSignupLimiter);
 app.use('/api/auth/send-otp', authSendOtpLimiter);
-app.use('/api/agent/kyc',     kycUploadLimiter);
-app.use('/api/dealer/kyc',    kycUploadLimiter);
+app.use('/api/agent/kyc', kycUploadLimiter);
+app.use('/api/dealer/kyc', kycUploadLimiter);
+app.use('/api/auth/refresh', authRefreshLimiter);
+app.use('/api/auth/forgot-password', authForgotPasswordLimiter);
+app.use('/api/auth/reset-password', authResetPasswordLimiter);
 
-// Auth — new hardening
-app.use('/api/auth/refresh',          authRefreshLimiter);
-app.use('/api/auth/forgot-password',  authForgotPasswordLimiter);
-app.use('/api/auth/reset-password',   authResetPasswordLimiter);
-
-// ── API routes ──────────────────────────────────────────────────────────────
 app.use('/api', routes);
-
-// ── Error handler (must be last) ────────────────────────────────────────────
 app.use(errorHandler);
 
 export default app;

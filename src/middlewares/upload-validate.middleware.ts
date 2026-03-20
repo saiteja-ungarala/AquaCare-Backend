@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { NextFunction, Request, Response } from 'express';
-import * as fileType from 'file-type';
 
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'application/pdf']);
@@ -48,6 +47,11 @@ const cleanupUploadedFiles = (files: Express.Multer.File[]) => {
     }
 };
 
+const detectFileType = async (fileBuffer: Buffer) => {
+    const { fileTypeFromBuffer } = await import('file-type');
+    return fileTypeFromBuffer(fileBuffer);
+};
+
 const createUploadValidator = (allowedMimeTypes: ReadonlySet<string>) => async (req: Request, _res: Response, next: NextFunction) => {
     const files = getUploadedFiles(req);
     if (files.length === 0) {
@@ -62,7 +66,7 @@ const createUploadValidator = (allowedMimeTypes: ReadonlySet<string>) => async (
             }
 
             const fileBuffer = fs.readFileSync(file.path);
-            const detectedType = await fileType.fromBuffer(fileBuffer);
+            const detectedType = await detectFileType(fileBuffer);
 
             if (!detectedType || !allowedMimeTypes.has(detectedType.mime)) {
                 deleteFileIfExists(file.path);

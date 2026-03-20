@@ -8,7 +8,7 @@ export const signup = async (req: Request, res: Response, next: NextFunction) =>
     try {
         const result = await AuthService.signup({
             ...req.body,
-            password_hash: req.body.password
+            password_hash: req.body.password,
         });
         return successResponse(res, result, 'User created successfully', 201);
     } catch (error) {
@@ -36,7 +36,6 @@ export const refresh = async (req: Request, res: Response, next: NextFunction) =
 
 export const logout = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        // Expect refresh token in body for now, to revoke specific session
         await AuthService.logout(req.body.refreshToken);
         return successResponse(res, null, 'Logged out successfully');
     } catch (error) {
@@ -47,17 +46,13 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
 export const me = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req.user as any).id;
-
-        // Fetch full user from DB
         const user = await UserModel.findById(userId);
         if (!user) {
             throw { type: 'AppError', message: 'User not found', statusCode: 404 };
         }
 
-        // Ensure wallet exists for user
         await WalletModel.createWallet(userId);
 
-        // Return sanitized user with camelCase fields
         const sanitizedUser = {
             id: user.id,
             fullName: user.full_name,
@@ -73,13 +68,14 @@ export const me = async (req: Request, res: Response, next: NextFunction) => {
     }
 };
 
-export const forgotPassword = async (req: Request, res: Response, _next: NextFunction) => {
-    const { email } = req.body;
-    // Fire-and-forget — never await, never reveal if email exists
-    AuthService.initiateForgotPassword(email).catch((err) =>
-        console.error('[Auth] forgotPassword error:', err)
-    );
-    return successResponse(res, null, 'If that email exists a reset link was sent');
+export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { email } = req.body;
+        await AuthService.initiateForgotPassword(email);
+        return successResponse(res, null, 'If that email exists a reset link was sent');
+    } catch (error) {
+        next(error);
+    }
 };
 
 export const resetPassword = async (req: Request, res: Response, next: NextFunction) => {

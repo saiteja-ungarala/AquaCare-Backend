@@ -78,7 +78,7 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
 
         return successResponse(res, {
             razorpay_order_id: razorpayOrder.id,
-            amount,
+            amount: razorpayOrder.amount,
             currency: 'INR',
             key: env.RAZORPAY_KEY_ID,
         });
