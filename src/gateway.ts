@@ -45,7 +45,10 @@ const createRateLimiter = (windowMs: number, max: number, message: string) =>
 
 const authLoginLimiter = createPostRateLimiter(15 * 60 * 1000, 5, 'Too many login attempts. Please try again later.');
 const authSignupLimiter = createPostRateLimiter(60 * 60 * 1000, 10, 'Too many signup attempts. Please try again later.');
-const authSendOtpLimiter = createPostRateLimiter(60 * 60 * 1000, 3, 'Too many OTP requests. Please try again later.');
+const authSignupResendOtpLimiter = createPostRateLimiter(15 * 60 * 1000, 5, 'Too many OTP requests. Please try again later.');
+const authLegacySendOtpLimiter = createPostRateLimiter(15 * 60 * 1000, 5, 'Too many OTP requests. Please try again later.');
+const authLoginSendOtpLimiter = createPostRateLimiter(15 * 60 * 1000, 5, 'Too many OTP requests. Please try again later.');
+const authLoginResendOtpLimiter = createPostRateLimiter(15 * 60 * 1000, 5, 'Too many OTP requests. Please try again later.');
 const kycUploadLimiter = createPostRateLimiter(60 * 60 * 1000, 10, 'Too many KYC upload attempts. Please try again later.');
 const authRefreshLimiter = createRateLimiter(15 * 60 * 1000, 20, 'Too many token refresh requests. Please try again later.');
 const authForgotPasswordLimiter = createRateLimiter(60 * 60 * 1000, 5, 'Too many password reset requests. Please try again later.');
@@ -141,10 +144,10 @@ app.post('/reset-password', async (req, res) => {
 app.use('/api/auth/login', authLoginLimiter);
 app.use('/api/auth/signup', authSignupLimiter);
 app.use('/api/auth/signup/initiate', authSignupLimiter);
-app.use('/api/auth/signup/resend-otp', authSendOtpLimiter);
-app.use('/api/auth/send-otp', authSendOtpLimiter);
-app.use('/api/auth/login/send-otp', authSendOtpLimiter);
-app.use('/api/auth/login/resend-otp', authSendOtpLimiter);
+app.use('/api/auth/signup/resend-otp', authSignupResendOtpLimiter);
+app.use('/api/auth/send-otp', authLegacySendOtpLimiter);
+app.use('/api/auth/login/send-otp', authLoginSendOtpLimiter);
+app.use('/api/auth/login/resend-otp', authLoginResendOtpLimiter);
 app.use('/api/agent/kyc', kycUploadLimiter);
 app.use('/api/dealer/kyc', kycUploadLimiter);
 app.use('/api/auth/refresh', authRefreshLimiter);
