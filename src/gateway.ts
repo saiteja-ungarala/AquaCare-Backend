@@ -140,7 +140,11 @@ app.post('/reset-password', async (req, res) => {
 
 app.use('/api/auth/login', authLoginLimiter);
 app.use('/api/auth/signup', authSignupLimiter);
+app.use('/api/auth/signup/initiate', authSignupLimiter);
+app.use('/api/auth/signup/resend-otp', authSendOtpLimiter);
 app.use('/api/auth/send-otp', authSendOtpLimiter);
+app.use('/api/auth/login/send-otp', authSendOtpLimiter);
+app.use('/api/auth/login/resend-otp', authSendOtpLimiter);
 app.use('/api/agent/kyc', kycUploadLimiter);
 app.use('/api/dealer/kyc', kycUploadLimiter);
 app.use('/api/auth/refresh', authRefreshLimiter);

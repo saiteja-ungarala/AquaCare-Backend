@@ -16,6 +16,38 @@ export const signup = async (req: Request, res: Response, next: NextFunction) =>
     }
 };
 
+export const initiateSignup = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const result = await AuthService.initiateSignupVerification({
+            ...req.body,
+            password_hash: req.body.password,
+        });
+        return successResponse(res, result, 'Verification codes sent');
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const verifySignupOtp = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { sessionToken, channel, otp } = req.body;
+        const result = await AuthService.verifySignupOtp(sessionToken, channel, otp);
+        return successResponse(res, result, result.completed ? 'Signup completed' : 'OTP verified');
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const resendSignupOtp = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { sessionToken, channel } = req.body;
+        const result = await AuthService.resendSignupOtp(sessionToken, channel);
+        return successResponse(res, result, 'Verification code resent');
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const login = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const result = await AuthService.login(req.body.email, req.body.password, req.body.role);
@@ -98,10 +130,40 @@ export const sendOtp = async (req: Request, res: Response, next: NextFunction) =
     }
 };
 
+export const startLoginOtp = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { phone, role } = req.body;
+        const result = await AuthService.initiateLoginOtp(phone, role);
+        return successResponse(res, result, 'OTP sent');
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const resendLoginOtp = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { sessionToken, channel } = req.body;
+        const result = await AuthService.resendLoginOtp(sessionToken, channel);
+        return successResponse(res, result, 'OTP resent');
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const verifyOtp = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { phone, otp } = req.body;
         const result = await AuthService.loginWithOTP(phone, otp);
+        return successResponse(res, result, 'Login successful');
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const verifyLoginOtp = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { sessionToken, channel, otp } = req.body;
+        const result = await AuthService.verifyLoginOtp(sessionToken, channel, otp);
         return successResponse(res, result, 'Login successful');
     } catch (error) {
         next(error);

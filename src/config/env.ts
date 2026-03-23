@@ -62,6 +62,9 @@ export const env = {
     RAZORPAY_WEBHOOK_SECRET: getOptionalEnv('RAZORPAY_WEBHOOK_SECRET'),
     FAST2SMS_API_KEY: getOptionalEnv('FAST2SMS_API_KEY'),
     SENDGRID_API_KEY: getOptionalEnv('SENDGRID_API_KEY'),
+    BREVO_API_KEY: getOptionalEnv('BREVO_API_KEY'),
+    BREVO_FROM_EMAIL: getOptionalEnv('BREVO_FROM_EMAIL'),
+    BREVO_FROM_NAME: getOptionalEnv('BREVO_FROM_NAME'),
     FROM_EMAIL: getOptionalEnv('FROM_EMAIL'),
     GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY ?? '',
 };

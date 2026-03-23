@@ -1,9 +1,11 @@
+import https from 'https';
 import sgMail from '@sendgrid/mail';
 import { env } from '../config/env';
 
-const isEmailConfigured = Boolean(env.SENDGRID_API_KEY && env.FROM_EMAIL);
+const isSendGridConfigured = Boolean(env.SENDGRID_API_KEY && env.FROM_EMAIL);
+const isBrevoConfigured = Boolean(env.BREVO_API_KEY && (env.BREVO_FROM_EMAIL || env.FROM_EMAIL));
 
-if (isEmailConfigured) {
+if (isSendGridConfigured) {
     sgMail.setApiKey(env.SENDGRID_API_KEY);
 }
 
@@ -14,8 +16,66 @@ const createAppError = (message: string, statusCode: number, code: string) => ({
     code,
 });
 
+const postJson = (url: string, body: string, headers: Record<string, string>): Promise<{ statusCode: number; body: string }> =>
+    new Promise((resolve, reject) => {
+        const requestUrl = new URL(url);
+        const request = https.request(
+            {
+                protocol: requestUrl.protocol,
+                hostname: requestUrl.hostname,
+                port: requestUrl.port || undefined,
+                path: `${requestUrl.pathname}${requestUrl.search}`,
+                method: 'POST',
+                headers: {
+                    ...headers,
+                    'Content-Length': Buffer.byteLength(body).toString(),
+                },
+            },
+            (response) => {
+                let responseBody = '';
+                response.setEncoding('utf8');
+                response.on('data', (chunk) => {
+                    responseBody += chunk;
+                });
+                response.on('end', () => {
+                    resolve({
+                        statusCode: response.statusCode || 500,
+                        body: responseBody,
+                    });
+                });
+            }
+        );
+
+        request.on('error', reject);
+        request.write(body);
+        request.end();
+    });
+
+const sendViaBrevo = async (message: Record<string, unknown>) => {
+    const payload = {
+        sender: {
+            email: env.BREVO_FROM_EMAIL || env.FROM_EMAIL,
+            name: env.BREVO_FROM_NAME || 'IONORA CARE',
+        },
+        to: [{ email: String(message.to || '') }],
+        subject: String(message.subject || ''),
+        textContent: String(message.text || ''),
+        htmlContent: String(message.html || ''),
+    };
+
+    const response = await postJson('https://api.brevo.com/v3/smtp/email', JSON.stringify(payload), {
+        'Content-Type': 'application/json',
+        'api-key': env.BREVO_API_KEY,
+        accept: 'application/json',
+    });
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw new Error(`Brevo email failed with status ${response.statusCode}`);
+    }
+};
+
 const sendEmail = async (message: Record<string, unknown>, options?: { required?: boolean; logLabel?: string; userMessage?: string }) => {
-    if (!isEmailConfigured) {
+    if (!isBrevoConfigured && !isSendGridConfigured) {
         if (options?.required) {
             throw createAppError(
                 options.userMessage || 'Email service is temporarily unavailable.',
@@ -27,7 +87,11 @@ const sendEmail = async (message: Record<string, unknown>, options?: { required?
     }
 
     try {
-        await sgMail.send(message as any);
+        if (isBrevoConfigured) {
+            await sendViaBrevo(message);
+        } else {
+            await sgMail.send(message as any);
+        }
     } catch (error) {
         console.error(`[EmailService] ${options?.logLabel || 'send'} failed:`, error);
         if (options?.required) {
@@ -41,11 +105,28 @@ const sendEmail = async (message: Record<string, unknown>, options?: { required?
 };
 
 export const EmailService = {
+    async sendOtpVerification(to: string, otp: string, contextLabel: string): Promise<void> {
+        await sendEmail(
+            {
+                to,
+                from: env.BREVO_FROM_EMAIL || env.FROM_EMAIL,
+                subject: `IONORA CARE ${contextLabel} OTP`,
+                text: `Your IONORA CARE verification code is ${otp}. It will expire in 5 minutes.`,
+                html: `<p>Your IONORA CARE verification code for <strong>${contextLabel}</strong> is:</p><p style="font-size:24px;font-weight:700;letter-spacing:4px;">${otp}</p><p>This code will expire in 5 minutes.</p>`,
+            },
+            {
+                required: true,
+                logLabel: 'otp verification',
+                userMessage: 'Unable to send verification email right now. Please try again later.',
+            }
+        );
+    },
+
     async sendPasswordReset(to: string, resetLink: string): Promise<void> {
         await sendEmail(
             {
                 to,
-                from: env.FROM_EMAIL,
+                from: env.BREVO_FROM_EMAIL || env.FROM_EMAIL,
                 subject: 'Reset your IonCare password',
                 text: `Click the link below to reset your password. This link expires in 15 minutes.\n\n${resetLink}\n\nIf you did not request a password reset, please ignore this email.`,
                 html: `<p>Click the link below to reset your password. This link expires in <strong>15 minutes</strong>.</p><p><a href="${resetLink}">${resetLink}</a></p><p>If you did not request a password reset, please ignore this email.</p>`,
@@ -62,7 +143,7 @@ export const EmailService = {
         void sendEmail(
             {
                 to,
-                from: env.FROM_EMAIL,
+                from: env.BREVO_FROM_EMAIL || env.FROM_EMAIL,
                 subject: `Booking Confirmed - #${data.bookingId}`,
                 text: `Your booking has been confirmed.\n\nService: ${data.serviceName}\nDate: ${data.scheduledDate}\nAddress: ${data.address}\nBooking ID: #${data.bookingId}`,
                 html: `<p>Your booking has been confirmed.</p><ul><li><strong>Service:</strong> ${data.serviceName}</li><li><strong>Date:</strong> ${data.scheduledDate}</li><li><strong>Address:</strong> ${data.address}</li><li><strong>Booking ID:</strong> #${data.bookingId}</li></ul>`,
@@ -75,7 +156,7 @@ export const EmailService = {
         void sendEmail(
             {
                 to,
-                from: env.FROM_EMAIL,
+                from: env.BREVO_FROM_EMAIL || env.FROM_EMAIL,
                 subject: `Technician Assigned - Booking #${data.bookingId}`,
                 text: `A technician has been assigned to your booking #${data.bookingId}.\n\nTechnician: ${data.agentName}\n\nThey will contact you shortly.`,
                 html: `<p>A technician has been assigned to your booking <strong>#${data.bookingId}</strong>.</p><p><strong>Technician:</strong> ${data.agentName}</p><p>They will contact you shortly.</p>`,
@@ -88,7 +169,7 @@ export const EmailService = {
         void sendEmail(
             {
                 to,
-                from: env.FROM_EMAIL,
+                from: env.BREVO_FROM_EMAIL || env.FROM_EMAIL,
                 subject: `Service Completed - Booking #${data.bookingId}`,
                 text: `Your service for booking #${data.bookingId} has been completed.\n\nAmount: Rs.${data.amount}\n\nThank you for choosing IonCare.`,
                 html: `<p>Your service for booking <strong>#${data.bookingId}</strong> has been completed.</p><p><strong>Amount:</strong> Rs.${data.amount}</p><p>Thank you for choosing IonCare.</p>`,

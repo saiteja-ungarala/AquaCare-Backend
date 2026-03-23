@@ -47,9 +47,9 @@ export const SmsService = {
     async sendOTP(phone: string, otp: string): Promise<void> {
         if (!env.FAST2SMS_API_KEY) {
             throw createAppError(
-                'OTP login is temporarily unavailable. Please use email login.',
+                'SMS OTP is temporarily unavailable. Please try again later.',
                 503,
-                'OTP_UNAVAILABLE'
+                'SMS_OTP_UNAVAILABLE'
             );
         }
 
