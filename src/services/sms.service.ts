@@ -1,6 +1,8 @@
 import https from 'https';
 import { env } from '../config/env';
 
+const SMS_PROVIDER_TIMEOUT_MS = 5000;
+
 const createAppError = (message: string, statusCode: number, code: string) => ({
     type: 'AppError',
     message,
@@ -38,6 +40,9 @@ const postJson = (url: string, body: string, headers: Record<string, string>): P
             }
         );
 
+        request.setTimeout(SMS_PROVIDER_TIMEOUT_MS, () => {
+            request.destroy(new Error(`Fast2SMS request timed out after ${SMS_PROVIDER_TIMEOUT_MS}ms`));
+        });
         request.on('error', reject);
         request.write(body);
         request.end();
@@ -66,6 +71,10 @@ export const SmsService = {
             });
 
             if (response.statusCode < 200 || response.statusCode >= 300) {
+                console.error('[SmsService] Fast2SMS non-2xx response:', {
+                    statusCode: response.statusCode,
+                    body: response.body,
+                });
                 throw createAppError('Unable to send OTP right now. Please try again later.', 502, 'OTP_DELIVERY_FAILED');
             }
 
@@ -77,6 +86,7 @@ export const SmsService = {
             }
 
             if (parsed?.return === false || parsed?.status_code === 0) {
+                console.error('[SmsService] Fast2SMS rejected OTP request:', parsed);
                 throw createAppError('Unable to send OTP right now. Please try again later.', 502, 'OTP_DELIVERY_FAILED');
             }
         } catch (error) {
