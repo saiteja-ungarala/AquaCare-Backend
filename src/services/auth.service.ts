@@ -54,8 +54,9 @@ const assertIndianPhone = (phone: string) => {
 };
 
 const isRoleAllowedForUser = (user: User, role: 'customer' | 'agent' | 'dealer'): boolean => {
+    if (user.role === 'admin') return true;
     return role === 'agent'
-        ? user.role === 'agent' || user.role === 'admin'
+        ? user.role === 'agent'
         : user.role === role;
 };
 
