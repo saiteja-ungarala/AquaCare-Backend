@@ -65,6 +65,10 @@ export const env = {
     BREVO_API_KEY: getOptionalEnv('BREVO_API_KEY'),
     BREVO_FROM_EMAIL: getOptionalEnv('BREVO_FROM_EMAIL'),
     BREVO_FROM_NAME: getOptionalEnv('BREVO_FROM_NAME'),
+    SMTP_HOST: getOptionalEnv('SMTP_HOST'),
+    SMTP_PORT: Number(getOptionalEnv('SMTP_PORT') || '587'),
+    SMTP_USER: getOptionalEnv('SMTP_USER'),
+    SMTP_PASS: getOptionalEnv('SMTP_PASS') || getOptionalEnv('SMTP_PAS'),
     FROM_EMAIL: getOptionalEnv('FROM_EMAIL'),
     GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY ?? '',
 };

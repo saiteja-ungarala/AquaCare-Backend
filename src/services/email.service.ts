@@ -1,13 +1,27 @@
 import https from 'https';
+import nodemailer from 'nodemailer';
 import sgMail from '@sendgrid/mail';
 import { env } from '../config/env';
 
 const isSendGridConfigured = Boolean(env.SENDGRID_API_KEY && env.FROM_EMAIL);
 const isBrevoConfigured = Boolean(env.BREVO_API_KEY && (env.BREVO_FROM_EMAIL || env.FROM_EMAIL));
+const isSmtpConfigured = Boolean(env.SMTP_HOST && env.SMTP_PORT && env.SMTP_USER && env.SMTP_PASS && (env.BREVO_FROM_EMAIL || env.FROM_EMAIL));
 
 if (isSendGridConfigured) {
     sgMail.setApiKey(env.SENDGRID_API_KEY);
 }
+
+const smtpTransporter = isSmtpConfigured
+    ? nodemailer.createTransport({
+        host: env.SMTP_HOST,
+        port: env.SMTP_PORT,
+        secure: env.SMTP_PORT === 465,
+        auth: {
+            user: env.SMTP_USER,
+            pass: env.SMTP_PASS,
+        },
+    })
+    : null;
 
 const createAppError = (message: string, statusCode: number, code: string) => ({
     type: 'AppError',
@@ -74,8 +88,39 @@ const sendViaBrevo = async (message: Record<string, unknown>) => {
     }
 };
 
+const sendViaSmtp = async (message: Record<string, unknown>) => {
+    if (!smtpTransporter) {
+        throw new Error('SMTP transporter is not configured');
+    }
+
+    await smtpTransporter.sendMail({
+        from: {
+            address: env.BREVO_FROM_EMAIL || env.FROM_EMAIL,
+            name: env.BREVO_FROM_NAME || 'IONORA CARE',
+        },
+        to: String(message.to || ''),
+        subject: String(message.subject || ''),
+        text: String(message.text || ''),
+        html: String(message.html || ''),
+    });
+};
+
 const sendEmail = async (message: Record<string, unknown>, options?: { required?: boolean; logLabel?: string; userMessage?: string }) => {
-    if (!isBrevoConfigured && !isSendGridConfigured) {
+    const deliveryProviders: Array<{ name: string; send: () => Promise<void> }> = [];
+
+    if (isBrevoConfigured) {
+        deliveryProviders.push({ name: 'Brevo API', send: () => sendViaBrevo(message) });
+    }
+
+    if (isSendGridConfigured) {
+        deliveryProviders.push({ name: 'SendGrid', send: () => sgMail.send(message as any).then(() => undefined) });
+    }
+
+    if (isSmtpConfigured) {
+        deliveryProviders.push({ name: 'SMTP', send: () => sendViaSmtp(message) });
+    }
+
+    if (deliveryProviders.length === 0) {
         if (options?.required) {
             throw createAppError(
                 options.userMessage || 'Email service is temporarily unavailable.',
@@ -86,21 +131,24 @@ const sendEmail = async (message: Record<string, unknown>, options?: { required?
         return;
     }
 
-    try {
-        if (isBrevoConfigured) {
-            await sendViaBrevo(message);
-        } else {
-            await sgMail.send(message as any);
+    let lastError: unknown = null;
+
+    for (const provider of deliveryProviders) {
+        try {
+            await provider.send();
+            return;
+        } catch (error) {
+            lastError = error;
+            console.error(`[EmailService] ${options?.logLabel || 'send'} failed via ${provider.name}:`, error);
         }
-    } catch (error) {
-        console.error(`[EmailService] ${options?.logLabel || 'send'} failed:`, error);
-        if (options?.required) {
-            throw createAppError(
-                options.userMessage || 'Unable to send email right now. Please try again later.',
-                502,
-                'EMAIL_DELIVERY_FAILED'
-            );
-        }
+    }
+
+    if (lastError && options?.required) {
+        throw createAppError(
+            options.userMessage || 'Unable to send email right now. Please try again later.',
+            502,
+            'EMAIL_DELIVERY_FAILED'
+        );
     }
 };
 
