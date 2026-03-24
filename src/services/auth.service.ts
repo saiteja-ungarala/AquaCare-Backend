@@ -8,6 +8,7 @@ import { OtpModel } from '../models/otp.model';
 import { AuthOtpChannel, AuthOtpPurpose, AuthOtpSession, AuthOtpSessionModel } from '../models/auth-otp-session.model';
 import { SmsService } from './sms.service';
 import { EmailService } from './email.service';
+import { FirebaseAdminService } from './firebase-admin.service';
 import { env } from '../config/env';
 
 const OTP_EXPIRY_MS = 5 * 60 * 1000;
@@ -41,6 +42,14 @@ const maskEmail = (email: string): string => {
 const maskPhone = (phone: string): string => {
     if (phone.length < 4) return phone;
     return `${'*'.repeat(Math.max(0, phone.length - 4))}${phone.slice(-4)}`;
+};
+
+const normalizeFirebasePhone = (phone: string): string => {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('91') && digits.length === 12) {
+        return digits.slice(2);
+    }
+    return digits;
 };
 
 const assertIndianPhone = (phone: string) => {
@@ -220,6 +229,63 @@ const verifySessionOtp = async (session: AuthOtpSession, channel: AuthOtpChannel
     return true;
 };
 
+const finalizeSignupIfReady = async (updatedSession: AuthOtpSession): Promise<any> => {
+    if (!updatedSession.email_verified) {
+        return {
+            completed: false,
+            session: buildOtpSessionPayload(updatedSession, 'signup', 'email', 'sms'),
+        };
+    }
+
+    if (!updatedSession.sms_verified) {
+        return {
+            completed: false,
+            session: buildOtpSessionPayload(updatedSession, 'signup', 'sms'),
+        };
+    }
+
+    let user = updatedSession.created_user_id
+        ? await UserModel.findById(updatedSession.created_user_id)
+        : null;
+
+    if (!user) {
+        const existingEmailUser = await UserModel.findByEmail(updatedSession.email);
+        if (existingEmailUser) {
+            throw createAppError(
+                'This email is already registered. Please log in.',
+                409,
+                [{ field: 'email', message: 'This email is already registered.' }],
+            );
+        }
+
+        const existingPhoneUser = await UserModel.findByPhone(updatedSession.phone);
+        if (existingPhoneUser) {
+            throw createAppError(
+                'This phone number is already registered. Please log in.',
+                409,
+                [{ field: 'phone', message: 'This phone number is already registered.' }],
+            );
+        }
+
+        user = await createUserAccount({
+            role: updatedSession.role as User['role'],
+            full_name: updatedSession.full_name || '',
+            email: updatedSession.email,
+            phone: updatedSession.phone,
+            password_hash: updatedSession.password_hash || '',
+        });
+
+        await AuthOtpSessionModel.setCreatedUser(updatedSession.session_token, user.id!);
+    }
+
+    const tokens = await AuthService.generateTokens(user);
+    return {
+        completed: true,
+        user: AuthService.sanitizeUser(user),
+        ...tokens,
+    };
+};
+
 export const AuthService = {
     async signup(data: User): Promise<any> {
         const existingUser = await UserModel.findByEmail(data.email);
@@ -309,7 +375,6 @@ export const AuthService = {
 
         try {
             await sendOtpForSession(activeSession, 'email', 'email verification');
-            await sendOtpForSession(activeSession, 'sms', 'mobile verification');
         } catch (error) {
             await AuthOtpSessionModel.deleteBySessionToken(sessionToken);
             throw error;
@@ -340,61 +405,37 @@ export const AuthService = {
         }
 
         const updatedSession = assertValidSession(await AuthOtpSessionModel.findBySessionToken(sessionToken), 'signup');
+        return await finalizeSignupIfReady(updatedSession);
+    },
 
-        if (!updatedSession.email_verified) {
-            return {
-                completed: false,
-                session: buildOtpSessionPayload(updatedSession, 'signup', 'email', 'sms'),
-            };
+    async verifySignupFirebaseSms(sessionToken: string, firebaseIdToken: string): Promise<any> {
+        const session = assertValidSession(await AuthOtpSessionModel.findBySessionToken(sessionToken), 'signup');
+
+        if (!session.email_verified) {
+            throw createAppError(
+                'Please verify your email OTP first.',
+                400,
+                [{ field: 'channel', message: 'Please verify your email OTP first.' }],
+            );
         }
 
-        if (!updatedSession.sms_verified) {
-            return {
-                completed: false,
-                session: buildOtpSessionPayload(updatedSession, 'signup', 'sms'),
-            };
+        const { phoneNumber } = await FirebaseAdminService.verifyPhoneIdToken(firebaseIdToken);
+        const normalizedFirebasePhone = normalizeFirebasePhone(phoneNumber);
+
+        if (normalizedFirebasePhone !== session.phone) {
+            throw createAppError(
+                'This SMS verification does not match the signup phone number.',
+                400,
+                [{ field: 'firebaseIdToken', message: 'This SMS verification does not match the signup phone number.' }],
+            );
         }
 
-        let user = updatedSession.created_user_id
-            ? await UserModel.findById(updatedSession.created_user_id)
-            : null;
-
-        if (!user) {
-            const existingEmailUser = await UserModel.findByEmail(updatedSession.email);
-            if (existingEmailUser) {
-                throw createAppError(
-                    'This email is already registered. Please log in.',
-                    409,
-                    [{ field: 'email', message: 'This email is already registered.' }],
-                );
-            }
-
-            const existingPhoneUser = await UserModel.findByPhone(updatedSession.phone);
-            if (existingPhoneUser) {
-                throw createAppError(
-                    'This phone number is already registered. Please log in.',
-                    409,
-                    [{ field: 'phone', message: 'This phone number is already registered.' }],
-                );
-            }
-
-            user = await createUserAccount({
-                role: updatedSession.role as User['role'],
-                full_name: updatedSession.full_name || '',
-                email: updatedSession.email,
-                phone: updatedSession.phone,
-                password_hash: updatedSession.password_hash || '',
-            });
-
-            await AuthOtpSessionModel.setCreatedUser(updatedSession.session_token, user.id!);
+        if (!session.sms_verified) {
+            await AuthOtpSessionModel.markChannelVerified(session.session_token, 'sms');
         }
 
-        const tokens = await this.generateTokens(user);
-        return {
-            completed: true,
-            user: this.sanitizeUser(user),
-            ...tokens,
-        };
+        const updatedSession = assertValidSession(await AuthOtpSessionModel.findBySessionToken(sessionToken), 'signup');
+        return await finalizeSignupIfReady(updatedSession);
     },
 
     async resendSignupOtp(sessionToken: string, channel: 'email' | 'sms'): Promise<any> {
@@ -406,6 +447,10 @@ export const AuthService = {
                 400,
                 [{ field: 'channel', message: 'Please verify your email OTP first.' }],
             );
+        }
+
+        if (channel === 'sms') {
+            return buildOtpSessionPayload(session, 'signup', 'sms');
         }
 
         await sendOtpForSession(session, channel, channel === 'email' ? 'email verification' : 'mobile verification');

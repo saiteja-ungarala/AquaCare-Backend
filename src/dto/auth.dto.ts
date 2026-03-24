@@ -92,6 +92,13 @@ export const SignupVerifyOtpSchema = z.object({
     }),
 });
 
+export const SignupVerifyFirebaseSmsSchema = z.object({
+    body: z.object({
+        sessionToken: sessionTokenField,
+        firebaseIdToken: z.string().min(1, 'Firebase ID token is required'),
+    }),
+});
+
 export const SignupResendOtpSchema = z.object({
     body: z.object({
         sessionToken: sessionTokenField,

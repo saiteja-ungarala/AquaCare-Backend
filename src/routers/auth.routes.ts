@@ -11,6 +11,7 @@ import {
     ResetPasswordSchema,
     SignupInitiateSchema,
     SignupVerifyOtpSchema,
+    SignupVerifyFirebaseSmsSchema,
     SignupResendOtpSchema,
     LoginOtpStartSchema,
     LoginOtpResendSchema,
@@ -23,6 +24,7 @@ const router = Router();
 router.post('/signup', validate(SignupSchema), AuthController.signup);
 router.post('/signup/initiate', validate(SignupInitiateSchema), AuthController.initiateSignup);
 router.post('/signup/verify-otp', validate(SignupVerifyOtpSchema), AuthController.verifySignupOtp);
+router.post('/signup/verify-firebase-sms', validate(SignupVerifyFirebaseSmsSchema), AuthController.verifySignupFirebaseSms);
 router.post('/signup/resend-otp', validate(SignupResendOtpSchema), AuthController.resendSignupOtp);
 router.post('/login', validate(LoginSchema), AuthController.login);
 router.post('/login/send-otp', validate(LoginOtpStartSchema), AuthController.startLoginOtp);

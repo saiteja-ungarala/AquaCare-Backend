@@ -38,6 +38,16 @@ export const verifySignupOtp = async (req: Request, res: Response, next: NextFun
     }
 };
 
+export const verifySignupFirebaseSms = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { sessionToken, firebaseIdToken } = req.body;
+        const result = await AuthService.verifySignupFirebaseSms(sessionToken, firebaseIdToken);
+        return successResponse(res, result, result.completed ? 'Signup completed' : 'SMS verified');
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const resendSignupOtp = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { sessionToken, channel } = req.body;
