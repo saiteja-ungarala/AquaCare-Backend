@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyOtp = exports.sendOtp = exports.resetPassword = exports.forgotPassword = exports.me = exports.logout = exports.refresh = exports.login = exports.signup = void 0;
+exports.verifyLoginOtp = exports.verifyOtp = exports.resendLoginOtp = exports.startLoginOtp = exports.sendOtp = exports.resetPassword = exports.forgotPassword = exports.me = exports.logout = exports.refresh = exports.login = exports.resendSignupOtp = exports.verifySignupOtp = exports.initiateSignup = exports.signup = void 0;
 const auth_service_1 = require("../services/auth.service");
 const user_model_1 = require("../models/user.model");
 const wallet_model_1 = require("../models/wallet.model");
@@ -24,6 +24,38 @@ const signup = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
     }
 });
 exports.signup = signup;
+const initiateSignup = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const result = yield auth_service_1.AuthService.initiateSignupVerification(Object.assign(Object.assign({}, req.body), { password_hash: req.body.password }));
+        return (0, response_1.successResponse)(res, result, 'Verification codes sent');
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.initiateSignup = initiateSignup;
+const verifySignupOtp = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { sessionToken, channel, otp } = req.body;
+        const result = yield auth_service_1.AuthService.verifySignupOtp(sessionToken, channel, otp);
+        return (0, response_1.successResponse)(res, result, result.completed ? 'Signup completed' : 'OTP verified');
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.verifySignupOtp = verifySignupOtp;
+const resendSignupOtp = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { sessionToken, channel } = req.body;
+        const result = yield auth_service_1.AuthService.resendSignupOtp(sessionToken, channel);
+        return (0, response_1.successResponse)(res, result, 'Verification code resent');
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.resendSignupOtp = resendSignupOtp;
 const login = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const result = yield auth_service_1.AuthService.login(req.body.email, req.body.password, req.body.role);
@@ -46,7 +78,6 @@ const refresh = (req, res, next) => __awaiter(void 0, void 0, void 0, function* 
 exports.refresh = refresh;
 const logout = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        // Expect refresh token in body for now, to revoke specific session
         yield auth_service_1.AuthService.logout(req.body.refreshToken);
         return (0, response_1.successResponse)(res, null, 'Logged out successfully');
     }
@@ -58,14 +89,11 @@ exports.logout = logout;
 const me = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const userId = req.user.id;
-        // Fetch full user from DB
         const user = yield user_model_1.UserModel.findById(userId);
         if (!user) {
             throw { type: 'AppError', message: 'User not found', statusCode: 404 };
         }
-        // Ensure wallet exists for user
         yield wallet_model_1.WalletModel.createWallet(userId);
-        // Return sanitized user with camelCase fields
         const sanitizedUser = {
             id: user.id,
             fullName: user.full_name,
@@ -81,11 +109,15 @@ const me = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.me = me;
-const forgotPassword = (req, res, _next) => __awaiter(void 0, void 0, void 0, function* () {
-    const { email } = req.body;
-    // Fire-and-forget — never await, never reveal if email exists
-    auth_service_1.AuthService.initiateForgotPassword(email).catch((err) => console.error('[Auth] forgotPassword error:', err));
-    return (0, response_1.successResponse)(res, null, 'If that email exists a reset link was sent');
+const forgotPassword = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email } = req.body;
+        yield auth_service_1.AuthService.initiateForgotPassword(email);
+        return (0, response_1.successResponse)(res, null, 'If that email exists a reset link was sent');
+    }
+    catch (error) {
+        next(error);
+    }
 });
 exports.forgotPassword = forgotPassword;
 const resetPassword = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
@@ -110,6 +142,28 @@ const sendOtp = (req, res, next) => __awaiter(void 0, void 0, void 0, function* 
     }
 });
 exports.sendOtp = sendOtp;
+const startLoginOtp = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { phone, role } = req.body;
+        const result = yield auth_service_1.AuthService.initiateLoginOtp(phone, role);
+        return (0, response_1.successResponse)(res, result, 'OTP sent');
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.startLoginOtp = startLoginOtp;
+const resendLoginOtp = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { sessionToken, channel } = req.body;
+        const result = yield auth_service_1.AuthService.resendLoginOtp(sessionToken, channel);
+        return (0, response_1.successResponse)(res, result, 'OTP resent');
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.resendLoginOtp = resendLoginOtp;
 const verifyOtp = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { phone, otp } = req.body;
@@ -121,3 +175,14 @@ const verifyOtp = (req, res, next) => __awaiter(void 0, void 0, void 0, function
     }
 });
 exports.verifyOtp = verifyOtp;
+const verifyLoginOtp = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { sessionToken, channel, otp } = req.body;
+        const result = yield auth_service_1.AuthService.verifyLoginOtp(sessionToken, channel, otp);
+        return (0, response_1.successResponse)(res, result, 'Login successful');
+    }
+    catch (error) {
+        next(error);
+    }
+});
+exports.verifyLoginOtp = verifyLoginOtp;

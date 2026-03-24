@@ -61,6 +61,13 @@ exports.env = {
     RAZORPAY_WEBHOOK_SECRET: getOptionalEnv('RAZORPAY_WEBHOOK_SECRET'),
     FAST2SMS_API_KEY: getOptionalEnv('FAST2SMS_API_KEY'),
     SENDGRID_API_KEY: getOptionalEnv('SENDGRID_API_KEY'),
+    BREVO_API_KEY: getOptionalEnv('BREVO_API_KEY'),
+    BREVO_FROM_EMAIL: getOptionalEnv('BREVO_FROM_EMAIL'),
+    BREVO_FROM_NAME: getOptionalEnv('BREVO_FROM_NAME'),
+    SMTP_HOST: getOptionalEnv('SMTP_HOST'),
+    SMTP_PORT: Number(getOptionalEnv('SMTP_PORT') || '587'),
+    SMTP_USER: getOptionalEnv('SMTP_USER'),
+    SMTP_PASS: getOptionalEnv('SMTP_PASS') || getOptionalEnv('SMTP_PAS'),
     FROM_EMAIL: getOptionalEnv('FROM_EMAIL'),
     GOOGLE_MAPS_API_KEY: (_c = process.env.GOOGLE_MAPS_API_KEY) !== null && _c !== void 0 ? _c : '',
 };

@@ -1,25 +1,57 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ResetPasswordSchema = exports.VerifyOtpSchema = exports.SendOtpSchema = exports.RefreshSchema = exports.LoginSchema = exports.SignupSchema = void 0;
+exports.ResetPasswordSchema = exports.LoginOtpVerifySchema = exports.LoginOtpResendSchema = exports.LoginOtpStartSchema = exports.SignupResendOtpSchema = exports.SignupVerifyOtpSchema = exports.SignupInitiateSchema = exports.VerifyOtpSchema = exports.SendOtpSchema = exports.RefreshSchema = exports.ForgotPasswordSchema = exports.LoginSchema = exports.SignupSchema = void 0;
 const zod_1 = require("zod");
 // bcrypt silently truncates passwords longer than 72 bytes.
 // Rejecting passwords > 72 chars prevents a subtle auth bypass where two
 // different long passwords hash to the same bcrypt digest.
-const passwordField = zod_1.z.string().min(8, 'Password must be at least 8 characters').max(72, 'Password too long');
+const signupPasswordField = zod_1.z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(72, 'Password must be 72 characters or fewer');
+const loginPasswordField = zod_1.z
+    .string()
+    .min(1, 'Password is required')
+    .max(72, 'Password must be 72 characters or fewer');
+const emailField = zod_1.z
+    .string()
+    .min(1, 'Email is required')
+    .email('Enter a valid email address');
+const phoneField = zod_1.z
+    .string()
+    .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9');
+const fullNameField = zod_1.z
+    .string()
+    .min(2, 'Full name must be at least 2 characters')
+    .max(100, 'Full name must be 100 characters or fewer');
+const roleField = zod_1.z.enum(['customer', 'agent', 'dealer'], {
+    errorMap: () => ({ message: 'Please select a valid role' }),
+});
+const loginRoleField = zod_1.z.enum(['customer', 'agent', 'dealer', 'admin'], {
+    errorMap: () => ({ message: 'Please select a valid role' }),
+});
+const otpChannelField = zod_1.z.enum(['email', 'sms', 'whatsapp']);
+const otpField = zod_1.z.string().regex(/^\d{6}$/, 'OTP must be exactly 6 digits');
+const sessionTokenField = zod_1.z.string().min(16, 'Session token is required');
 exports.SignupSchema = zod_1.z.object({
     body: zod_1.z.object({
-        full_name: zod_1.z.string().min(2).max(100),
-        email: zod_1.z.string().email(),
-        password: passwordField,
-        phone: zod_1.z.string().regex(/^\d{10}$/).optional(),
-        role: zod_1.z.enum(['customer', 'agent', 'dealer']).default('customer'),
+        full_name: fullNameField,
+        email: emailField,
+        password: signupPasswordField,
+        phone: phoneField.optional(),
+        role: roleField.default('customer'),
     }),
 });
 exports.LoginSchema = zod_1.z.object({
     body: zod_1.z.object({
-        email: zod_1.z.string().email(),
-        password: zod_1.z.string().min(1).max(72),
-        role: zod_1.z.enum(['customer', 'agent', 'dealer']),
+        email: emailField,
+        password: loginPasswordField,
+        role: loginRoleField,
+    }),
+});
+exports.ForgotPasswordSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        email: emailField,
     }),
 });
 exports.RefreshSchema = zod_1.z.object({
@@ -29,18 +61,51 @@ exports.RefreshSchema = zod_1.z.object({
 });
 exports.SendOtpSchema = zod_1.z.object({
     body: zod_1.z.object({
-        phone: zod_1.z.string().regex(/^\d{10}$/, 'Phone number must be exactly 10 digits'),
+        phone: phoneField,
     }),
 });
 exports.VerifyOtpSchema = zod_1.z.object({
     body: zod_1.z.object({
-        phone: zod_1.z.string().regex(/^\d{10}$/, 'Phone number must be exactly 10 digits'),
-        otp: zod_1.z.string().regex(/^\d{6}$/, 'OTP must be exactly 6 digits'),
+        phone: phoneField,
+        otp: otpField,
+    }),
+});
+exports.SignupInitiateSchema = exports.SignupSchema;
+exports.SignupVerifyOtpSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        sessionToken: sessionTokenField,
+        channel: zod_1.z.enum(['email', 'sms']),
+        otp: otpField,
+    }),
+});
+exports.SignupResendOtpSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        sessionToken: sessionTokenField,
+        channel: zod_1.z.enum(['email', 'sms']),
+    }),
+});
+exports.LoginOtpStartSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        phone: phoneField,
+        role: roleField,
+    }),
+});
+exports.LoginOtpResendSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        sessionToken: sessionTokenField,
+        channel: otpChannelField,
+    }),
+});
+exports.LoginOtpVerifySchema = zod_1.z.object({
+    body: zod_1.z.object({
+        sessionToken: sessionTokenField,
+        channel: otpChannelField,
+        otp: otpField,
     }),
 });
 exports.ResetPasswordSchema = zod_1.z.object({
     body: zod_1.z.object({
         token: zod_1.z.string().min(1),
-        newPassword: passwordField,
+        newPassword: signupPasswordField,
     }),
 });

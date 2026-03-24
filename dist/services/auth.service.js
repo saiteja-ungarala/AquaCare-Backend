@@ -31,53 +31,379 @@ const user_model_1 = require("../models/user.model");
 const wallet_model_1 = require("../models/wallet.model");
 const user_benefit_model_1 = require("../models/user-benefit.model");
 const otp_model_1 = require("../models/otp.model");
+const auth_otp_session_model_1 = require("../models/auth-otp-session.model");
 const sms_service_1 = require("./sms.service");
 const email_service_1 = require("./email.service");
 const env_1 = require("../config/env");
+const OTP_EXPIRY_MS = 5 * 60 * 1000;
+const SESSION_EXPIRY_MS = 15 * 60 * 1000;
+const MAX_OTP_ATTEMPTS = 5;
+const WHATSAPP_OTP_ENABLED = false;
+const createAppError = (message, statusCode, details) => ({
+    type: 'AppError',
+    message,
+    statusCode,
+    details,
+});
+const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+const buildExpiryDate = (durationMs) => new Date(Date.now() + durationMs);
+const maskEmail = (email) => {
+    const [localPart, domain = ''] = email.split('@');
+    if (!localPart || !domain)
+        return email;
+    const visible = localPart.slice(0, Math.min(2, localPart.length));
+    return `${visible}${'*'.repeat(Math.max(2, localPart.length - visible.length))}@${domain}`;
+};
+const maskPhone = (phone) => {
+    if (phone.length < 4)
+        return phone;
+    return `${'*'.repeat(Math.max(0, phone.length - 4))}${phone.slice(-4)}`;
+};
+const assertIndianPhone = (phone) => {
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+        throw createAppError('Enter a valid 10-digit Indian mobile number.', 400, [{ field: 'phone', message: 'Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.' }]);
+    }
+};
+const isRoleAllowedForUser = (user, role) => {
+    if (user.role === 'admin')
+        return true;
+    return role === 'agent'
+        ? user.role === 'agent'
+        : user.role === role;
+};
+const getSessionChannelState = (session, channel) => {
+    if (channel === 'email') {
+        return {
+            otpHash: session.email_otp_hash,
+            expiresAt: session.email_otp_expires_at,
+            attempts: session.email_otp_attempts,
+            verified: session.email_verified,
+        };
+    }
+    if (channel === 'sms') {
+        return {
+            otpHash: session.sms_otp_hash,
+            expiresAt: session.sms_otp_expires_at,
+            attempts: session.sms_otp_attempts,
+            verified: session.sms_verified,
+        };
+    }
+    return {
+        otpHash: session.whatsapp_otp_hash,
+        expiresAt: session.whatsapp_otp_expires_at,
+        attempts: session.whatsapp_otp_attempts,
+        verified: session.whatsapp_verified,
+    };
+};
+const buildOtpSessionPayload = (session, flow, currentChannel, nextChannel) => ({
+    flow,
+    sessionToken: session.session_token,
+    currentChannel,
+    nextChannel: nextChannel || null,
+    maskedEmail: maskEmail(session.email),
+    maskedPhone: maskPhone(session.phone),
+    verifiedChannels: {
+        email: session.email_verified,
+        sms: session.sms_verified,
+        whatsapp: session.whatsapp_verified,
+    },
+    expiresInSeconds: Math.max(0, Math.floor((session.expires_at.getTime() - Date.now()) / 1000)),
+    availableChannels: flow === 'signup'
+        ? ['email', 'sms']
+        : (WHATSAPP_OTP_ENABLED ? ['email', 'whatsapp'] : ['email']),
+    whatsappAvailable: WHATSAPP_OTP_ENABLED,
+});
+const assertValidSession = (session, purpose) => {
+    if (!session || session.purpose !== purpose) {
+        throw createAppError('Verification session not found. Please request a new OTP.', 400, [{ field: 'sessionToken', message: 'Verification session not found. Please request a new OTP.' }]);
+    }
+    if (session.expires_at < new Date()) {
+        throw createAppError('Verification session expired. Please request a new OTP.', 400, [{ field: 'sessionToken', message: 'Verification session expired. Please request a new OTP.' }]);
+    }
+    return session;
+};
+const createUserAccount = (data) => __awaiter(void 0, void 0, void 0, function* () {
+    const userId = yield user_model_1.UserModel.create(data);
+    yield wallet_model_1.WalletModel.createWallet(userId);
+    yield wallet_model_1.WalletModel.creditWithIdempotency(userId, {
+        amount: 1000,
+        txn_type: 'credit',
+        source: 'welcome_bonus',
+        idempotency_key: `welcome:${userId}`,
+    });
+    if (data.role === 'customer') {
+        yield user_benefit_model_1.UserBenefitModel.create(userId, 'FIRST_SERVICE_FREE');
+    }
+    const user = yield user_model_1.UserModel.findById(userId);
+    if (!user) {
+        throw createAppError('Unable to complete account creation right now.', 500);
+    }
+    return user;
+});
+const sendOtpForSession = (session, channel, contextLabel) => __awaiter(void 0, void 0, void 0, function* () {
+    if (channel === 'whatsapp' && !WHATSAPP_OTP_ENABLED) {
+        throw createAppError('WhatsApp OTP is not available right now. It requires a paid provider setup.', 400, [{ field: 'channel', message: 'WhatsApp OTP is not available right now. It requires a paid provider setup.' }]);
+    }
+    const otp = generateOtp();
+    const otpHash = yield bcrypt_1.default.hash(otp, 10);
+    const otpExpiresAt = buildExpiryDate(OTP_EXPIRY_MS);
+    yield auth_otp_session_model_1.AuthOtpSessionModel.setChannelOtp(session.session_token, channel, otpHash, otpExpiresAt);
+    if (channel === 'email') {
+        yield email_service_1.EmailService.sendOtpVerification(session.email, otp, contextLabel);
+        return;
+    }
+    if (channel === 'sms') {
+        yield sms_service_1.SmsService.sendOTP(session.phone, otp);
+        return;
+    }
+});
+const verifySessionOtp = (session, channel, otp) => __awaiter(void 0, void 0, void 0, function* () {
+    const currentState = getSessionChannelState(session, channel);
+    if (!currentState.otpHash || currentState.verified) {
+        throw createAppError('OTP not found. Request a new one.', 400, [{ field: 'otp', message: 'OTP not found. Request a new one.' }]);
+    }
+    if (!currentState.expiresAt || currentState.expiresAt < new Date()) {
+        throw createAppError('OTP expired. Request a new one.', 400, [{ field: 'otp', message: 'OTP expired. Request a new one.' }]);
+    }
+    if (currentState.attempts >= MAX_OTP_ATTEMPTS) {
+        throw createAppError('Too many attempts. Request a new OTP.', 429, [{ field: 'otp', message: 'Too many attempts. Request a new OTP.' }]);
+    }
+    const isMatch = yield bcrypt_1.default.compare(otp, currentState.otpHash);
+    if (!isMatch) {
+        yield auth_otp_session_model_1.AuthOtpSessionModel.incrementAttempts(session.session_token, channel);
+        return false;
+    }
+    yield auth_otp_session_model_1.AuthOtpSessionModel.markChannelVerified(session.session_token, channel);
+    return true;
+});
 exports.AuthService = {
     signup(data) {
         return __awaiter(this, void 0, void 0, function* () {
             const existingUser = yield user_model_1.UserModel.findByEmail(data.email);
             if (existingUser) {
-                throw { type: 'AppError', message: 'Email already exists', statusCode: 409 };
+                throw createAppError('This email is already registered. Please log in.', 409, [{ field: 'email', message: 'This email is already registered.' }]);
+            }
+            if (data.phone) {
+                const existingPhoneUser = yield user_model_1.UserModel.findByPhone(data.phone);
+                if (existingPhoneUser) {
+                    throw createAppError('This phone number is already registered. Please log in.', 409, [{ field: 'phone', message: 'This phone number is already registered.' }]);
+                }
             }
             const hashedPassword = yield bcrypt_1.default.hash(data.password_hash, 10);
-            const userId = yield user_model_1.UserModel.create(Object.assign(Object.assign({}, data), { password_hash: hashedPassword }));
-            // Wallet setup + welcome bonus
-            yield wallet_model_1.WalletModel.createWallet(userId);
-            yield wallet_model_1.WalletModel.creditWithIdempotency(userId, {
-                amount: 1000,
-                txn_type: 'credit',
-                source: 'welcome_bonus',
-                idempotency_key: `welcome:${userId}`,
-            });
-            // First Service Free benefit for new customers
-            if (data.role === 'customer') {
-                yield user_benefit_model_1.UserBenefitModel.create(userId, 'FIRST_SERVICE_FREE');
-            }
-            const user = yield user_model_1.UserModel.findById(userId);
+            const user = yield createUserAccount(Object.assign(Object.assign({}, data), { password_hash: hashedPassword }));
             const tokens = yield this.generateTokens(user);
             return Object.assign({ user: this.sanitizeUser(user) }, tokens);
+        });
+    },
+    initiateSignupVerification(data) {
+        return __awaiter(this, void 0, void 0, function* () {
+            assertIndianPhone(data.phone || '');
+            const existingUser = yield user_model_1.UserModel.findByEmail(data.email);
+            if (existingUser) {
+                throw createAppError('This email is already registered. Please log in.', 409, [{ field: 'email', message: 'This email is already registered.' }]);
+            }
+            const existingPhoneUser = yield user_model_1.UserModel.findByPhone(data.phone);
+            if (existingPhoneUser) {
+                throw createAppError('This phone number is already registered. Please log in.', 409, [{ field: 'phone', message: 'This phone number is already registered.' }]);
+            }
+            yield auth_otp_session_model_1.AuthOtpSessionModel.deleteExpired();
+            yield auth_otp_session_model_1.AuthOtpSessionModel.deleteByPurposeAndIdentity('signup', {
+                email: data.email,
+                phone: data.phone,
+            });
+            const hashedPassword = yield bcrypt_1.default.hash(data.password_hash, 10);
+            const sessionToken = (0, crypto_1.randomUUID)().replace(/-/g, '');
+            const expiresAt = buildExpiryDate(SESSION_EXPIRY_MS);
+            yield auth_otp_session_model_1.AuthOtpSessionModel.create({
+                session_token: sessionToken,
+                purpose: 'signup',
+                role: data.role,
+                user_id: null,
+                created_user_id: null,
+                full_name: data.full_name,
+                email: data.email,
+                phone: data.phone,
+                password_hash: hashedPassword,
+                email_otp_hash: null,
+                email_otp_expires_at: null,
+                email_otp_attempts: 0,
+                email_verified: false,
+                sms_otp_hash: null,
+                sms_otp_expires_at: null,
+                sms_otp_attempts: 0,
+                sms_verified: false,
+                whatsapp_otp_hash: null,
+                whatsapp_otp_expires_at: null,
+                whatsapp_otp_attempts: 0,
+                whatsapp_verified: false,
+                expires_at: expiresAt,
+            });
+            const session = yield auth_otp_session_model_1.AuthOtpSessionModel.findBySessionToken(sessionToken);
+            const activeSession = assertValidSession(session, 'signup');
+            try {
+                yield sendOtpForSession(activeSession, 'email', 'email verification');
+                yield sendOtpForSession(activeSession, 'sms', 'mobile verification');
+            }
+            catch (error) {
+                yield auth_otp_session_model_1.AuthOtpSessionModel.deleteBySessionToken(sessionToken);
+                throw error;
+            }
+            const updatedSession = yield auth_otp_session_model_1.AuthOtpSessionModel.findBySessionToken(sessionToken);
+            return buildOtpSessionPayload(assertValidSession(updatedSession, 'signup'), 'signup', 'email', 'sms');
+        });
+    },
+    verifySignupOtp(sessionToken, channel, otp) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const session = assertValidSession(yield auth_otp_session_model_1.AuthOtpSessionModel.findBySessionToken(sessionToken), 'signup');
+            if (channel === 'sms' && !session.email_verified) {
+                throw createAppError('Please verify your email OTP first.', 400, [{ field: 'channel', message: 'Please verify your email OTP first.' }]);
+            }
+            const isValid = yield verifySessionOtp(session, channel, otp);
+            if (!isValid) {
+                throw createAppError('Invalid OTP. Please try again.', 400, [{ field: 'otp', message: 'Invalid OTP. Please try again.' }]);
+            }
+            const updatedSession = assertValidSession(yield auth_otp_session_model_1.AuthOtpSessionModel.findBySessionToken(sessionToken), 'signup');
+            if (!updatedSession.email_verified) {
+                return {
+                    completed: false,
+                    session: buildOtpSessionPayload(updatedSession, 'signup', 'email', 'sms'),
+                };
+            }
+            if (!updatedSession.sms_verified) {
+                return {
+                    completed: false,
+                    session: buildOtpSessionPayload(updatedSession, 'signup', 'sms'),
+                };
+            }
+            let user = updatedSession.created_user_id
+                ? yield user_model_1.UserModel.findById(updatedSession.created_user_id)
+                : null;
+            if (!user) {
+                const existingEmailUser = yield user_model_1.UserModel.findByEmail(updatedSession.email);
+                if (existingEmailUser) {
+                    throw createAppError('This email is already registered. Please log in.', 409, [{ field: 'email', message: 'This email is already registered.' }]);
+                }
+                const existingPhoneUser = yield user_model_1.UserModel.findByPhone(updatedSession.phone);
+                if (existingPhoneUser) {
+                    throw createAppError('This phone number is already registered. Please log in.', 409, [{ field: 'phone', message: 'This phone number is already registered.' }]);
+                }
+                user = yield createUserAccount({
+                    role: updatedSession.role,
+                    full_name: updatedSession.full_name || '',
+                    email: updatedSession.email,
+                    phone: updatedSession.phone,
+                    password_hash: updatedSession.password_hash || '',
+                });
+                yield auth_otp_session_model_1.AuthOtpSessionModel.setCreatedUser(updatedSession.session_token, user.id);
+            }
+            const tokens = yield this.generateTokens(user);
+            return Object.assign({ completed: true, user: this.sanitizeUser(user) }, tokens);
+        });
+    },
+    resendSignupOtp(sessionToken, channel) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const session = assertValidSession(yield auth_otp_session_model_1.AuthOtpSessionModel.findBySessionToken(sessionToken), 'signup');
+            if (channel === 'sms' && !session.email_verified) {
+                throw createAppError('Please verify your email OTP first.', 400, [{ field: 'channel', message: 'Please verify your email OTP first.' }]);
+            }
+            yield sendOtpForSession(session, channel, channel === 'email' ? 'email verification' : 'mobile verification');
+            const updatedSession = assertValidSession(yield auth_otp_session_model_1.AuthOtpSessionModel.findBySessionToken(sessionToken), 'signup');
+            return buildOtpSessionPayload(updatedSession, 'signup', channel === 'email' ? 'email' : 'sms', channel === 'email' && !updatedSession.sms_verified ? 'sms' : undefined);
         });
     },
     login(email, password, role) {
         return __awaiter(this, void 0, void 0, function* () {
             const user = yield user_model_1.UserModel.findByEmail(email);
-            // User not found - return 404
             if (!user) {
-                throw { type: 'AppError', message: 'User not found', statusCode: 404 };
+                throw createAppError('Account not found. Please sign up.', 404, [{ field: 'email', message: 'No account found with this email.' }]);
             }
-            // Enforce selected role login. Admin is allowed only through agent entry.
-            const roleAllowed = role === 'agent'
-                ? user.role === 'agent' || user.role === 'admin'
-                : user.role === role;
-            if (!roleAllowed) {
-                throw { type: 'AppError', message: 'Credentials not found', statusCode: 404 };
+            if (!isRoleAllowedForUser(user, role)) {
+                throw createAppError(`No ${role} account found with this email.`, 404, [{ field: 'email', message: `No ${role} account found with this email.` }]);
             }
-            // Wrong password - return 401
             const isPasswordValid = yield bcrypt_1.default.compare(password, user.password_hash);
             if (!isPasswordValid) {
-                throw { type: 'AppError', message: 'Invalid password', statusCode: 401 };
+                throw createAppError('Incorrect password. Please try again.', 401, [{ field: 'password', message: 'Incorrect password. Please try again.' }]);
+            }
+            const tokens = yield this.generateTokens(user);
+            return Object.assign({ user: this.sanitizeUser(user) }, tokens);
+        });
+    },
+    initiateLoginOtp(phone, role) {
+        return __awaiter(this, void 0, void 0, function* () {
+            assertIndianPhone(phone);
+            const user = yield user_model_1.UserModel.findByPhone(phone);
+            if (!user) {
+                throw createAppError('No account found for this phone number.', 404, [{ field: 'phone', message: 'No account found for this phone number.' }]);
+            }
+            if (!isRoleAllowedForUser(user, role)) {
+                throw createAppError(`No ${role} account found for this phone number.`, 404, [{ field: 'phone', message: `No ${role} account found for this phone number.` }]);
+            }
+            if (!user.email) {
+                throw createAppError('This account does not have a registered email. Please use password login.', 400, [{ field: 'phone', message: 'This account does not have a registered email. Please use password login.' }]);
+            }
+            yield auth_otp_session_model_1.AuthOtpSessionModel.deleteExpired();
+            yield auth_otp_session_model_1.AuthOtpSessionModel.deleteByPurposeAndIdentity('login', {
+                userId: user.id,
+                phone,
+            });
+            const sessionToken = (0, crypto_1.randomUUID)().replace(/-/g, '');
+            const expiresAt = buildExpiryDate(SESSION_EXPIRY_MS);
+            yield auth_otp_session_model_1.AuthOtpSessionModel.create({
+                session_token: sessionToken,
+                purpose: 'login',
+                role: user.role,
+                user_id: user.id || null,
+                created_user_id: null,
+                full_name: user.full_name,
+                email: user.email,
+                phone,
+                password_hash: null,
+                email_otp_hash: null,
+                email_otp_expires_at: null,
+                email_otp_attempts: 0,
+                email_verified: false,
+                sms_otp_hash: null,
+                sms_otp_expires_at: null,
+                sms_otp_attempts: 0,
+                sms_verified: false,
+                whatsapp_otp_hash: null,
+                whatsapp_otp_expires_at: null,
+                whatsapp_otp_attempts: 0,
+                whatsapp_verified: false,
+                expires_at: expiresAt,
+            });
+            const session = assertValidSession(yield auth_otp_session_model_1.AuthOtpSessionModel.findBySessionToken(sessionToken), 'login');
+            try {
+                yield sendOtpForSession(session, 'email', 'login');
+            }
+            catch (error) {
+                yield auth_otp_session_model_1.AuthOtpSessionModel.deleteBySessionToken(sessionToken);
+                throw error;
+            }
+            const updatedSession = assertValidSession(yield auth_otp_session_model_1.AuthOtpSessionModel.findBySessionToken(sessionToken), 'login');
+            return buildOtpSessionPayload(updatedSession, 'login', 'email');
+        });
+    },
+    resendLoginOtp(sessionToken, channel) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const session = assertValidSession(yield auth_otp_session_model_1.AuthOtpSessionModel.findBySessionToken(sessionToken), 'login');
+            yield sendOtpForSession(session, channel, channel === 'email' ? 'login' : 'WhatsApp login');
+            const updatedSession = assertValidSession(yield auth_otp_session_model_1.AuthOtpSessionModel.findBySessionToken(sessionToken), 'login');
+            return buildOtpSessionPayload(updatedSession, 'login', channel);
+        });
+    },
+    verifyLoginOtp(sessionToken, channel, otp) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const session = assertValidSession(yield auth_otp_session_model_1.AuthOtpSessionModel.findBySessionToken(sessionToken), 'login');
+            const isValid = yield verifySessionOtp(session, channel, otp);
+            if (!isValid) {
+                throw createAppError('Invalid OTP. Please try again.', 400, [{ field: 'otp', message: 'Invalid OTP. Please try again.' }]);
+            }
+            const user = session.user_id
+                ? yield user_model_1.UserModel.findById(session.user_id)
+                : yield user_model_1.UserModel.findByPhone(session.phone);
+            if (!user) {
+                throw createAppError('No account found for this phone number.', 404, [{ field: 'phone', message: 'No account found for this phone number.' }]);
             }
             const tokens = yield this.generateTokens(user);
             return Object.assign({ user: this.sanitizeUser(user) }, tokens);
@@ -93,7 +419,6 @@ exports.AuthService = {
             if (!user) {
                 throw { type: 'AppError', message: 'User not found', statusCode: 404 };
             }
-            // Revoke old token (Rotation)
             yield user_model_1.UserModel.revokeSession(token);
             const tokens = yield this.generateTokens(user);
             return Object.assign({}, tokens);
@@ -108,9 +433,8 @@ exports.AuthService = {
         return __awaiter(this, void 0, void 0, function* () {
             const accessToken = jsonwebtoken_1.default.sign({ id: user.id, role: user.role, email: user.email }, env_1.env.JWT_SECRET, { expiresIn: env_1.env.JWT_ACCESS_EXPIRY });
             const refreshToken = jsonwebtoken_1.default.sign({ id: user.id, jti: (0, crypto_1.randomUUID)() }, env_1.env.JWT_REFRESH_SECRET, { expiresIn: env_1.env.JWT_REFRESH_EXPIRY });
-            // Store refresh token in DB
             const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+            expiresAt.setDate(expiresAt.getDate() + 7);
             yield user_model_1.UserModel.createSession(user.id, refreshToken, undefined, undefined, expiresAt);
             return { accessToken, refreshToken };
         });
@@ -121,28 +445,25 @@ exports.AuthService = {
     },
     sendOTP(phone) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!/^\d{10}$/.test(phone)) {
-                throw { type: 'AppError', message: 'Phone number must be exactly 10 digits', statusCode: 400 };
-            }
-            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+            assertIndianPhone(phone);
+            const otp = generateOtp();
             const otpHash = yield bcrypt_1.default.hash(otp, 10);
-            const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+            const expiresAt = buildExpiryDate(OTP_EXPIRY_MS);
             yield otp_model_1.OtpModel.create(phone, otpHash, expiresAt);
             yield sms_service_1.SmsService.sendOTP(phone, otp);
-            // OTP is never logged or returned
         });
     },
     verifyOTP(phone, otp) {
         return __awaiter(this, void 0, void 0, function* () {
             const record = yield otp_model_1.OtpModel.findLatestByPhone(phone);
             if (!record || record.verified) {
-                throw { type: 'AppError', message: 'OTP not found. Request a new one.', statusCode: 400 };
+                throw createAppError('OTP not found. Request a new one.', 400, [{ field: 'otp', message: 'OTP not found. Request a new one.' }]);
             }
             if (record.expires_at < new Date()) {
-                throw { type: 'AppError', message: 'OTP expired. Request a new one.', statusCode: 400 };
+                throw createAppError('OTP expired. Request a new one.', 400, [{ field: 'otp', message: 'OTP expired. Request a new one.' }]);
             }
-            if (record.attempts >= 5) {
-                throw { type: 'AppError', message: 'Too many attempts. Request new OTP.', statusCode: 429 };
+            if (record.attempts >= MAX_OTP_ATTEMPTS) {
+                throw createAppError('Too many attempts. Request a new OTP.', 429, [{ field: 'otp', message: 'Too many attempts. Request a new OTP.' }]);
             }
             const isMatch = yield bcrypt_1.default.compare(otp, record.otp_hash);
             if (!isMatch) {
@@ -160,10 +481,10 @@ exports.AuthService = {
                 return;
             const token = (0, crypto_1.randomBytes)(32).toString('hex');
             const hashedToken = (0, crypto_1.createHash)('sha256').update(token).digest('hex');
-            const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes — shorter window reduces exposure
+            const expires = new Date(Date.now() + 15 * 60 * 1000);
             yield user_model_1.UserModel.setResetToken(user.id, hashedToken, expires);
             const resetLink = `${env_1.env.BASE_SERVER_URL}/reset-password?token=${token}`;
-            email_service_1.EmailService.sendPasswordReset(email, resetLink); // fire-and-forget
+            yield email_service_1.EmailService.sendPasswordReset(email, resetLink);
         });
     },
     resetPassword(token, newPassword) {
@@ -182,11 +503,11 @@ exports.AuthService = {
         return __awaiter(this, void 0, void 0, function* () {
             const isValid = yield this.verifyOTP(phone, otp);
             if (!isValid) {
-                throw { type: 'AppError', message: 'Invalid OTP', statusCode: 400 };
+                throw createAppError('Invalid OTP. Please try again.', 400, [{ field: 'otp', message: 'Invalid OTP. Please try again.' }]);
             }
             const user = yield user_model_1.UserModel.findByPhone(phone);
             if (!user) {
-                throw { type: 'AppError', message: 'No account found for this phone number', statusCode: 404 };
+                throw createAppError('No account found for this phone number.', 404, [{ field: 'phone', message: 'No account found for this phone number.' }]);
             }
             const tokens = yield this.generateTokens(user);
             return Object.assign({ user: this.sanitizeUser(user) }, tokens);

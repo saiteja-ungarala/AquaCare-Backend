@@ -31,6 +31,10 @@ const roleField = z.enum(['customer', 'agent', 'dealer'], {
     errorMap: () => ({ message: 'Please select a valid role' }),
 });
 
+const loginRoleField = z.enum(['customer', 'agent', 'dealer', 'admin'], {
+    errorMap: () => ({ message: 'Please select a valid role' }),
+});
+
 const otpChannelField = z.enum(['email', 'sms', 'whatsapp']);
 const otpField = z.string().regex(/^\d{6}$/, 'OTP must be exactly 6 digits');
 const sessionTokenField = z.string().min(16, 'Session token is required');
@@ -49,7 +53,7 @@ export const LoginSchema = z.object({
     body: z.object({
         email: emailField,
         password: loginPasswordField,
-        role: roleField,
+        role: loginRoleField,
     }),
 });
 

@@ -53,7 +53,10 @@ const assertIndianPhone = (phone: string) => {
     }
 };
 
-const isRoleAllowedForUser = (user: User, role: 'customer' | 'agent' | 'dealer'): boolean => {
+const isRoleAllowedForUser = (
+    user: User,
+    role: 'customer' | 'agent' | 'dealer' | 'admin'
+): boolean => {
     if (user.role === 'admin') return true;
     return role === 'agent'
         ? user.role === 'agent'
@@ -416,7 +419,11 @@ export const AuthService = {
         );
     },
 
-    async login(email: string, password: string, role: 'customer' | 'agent' | 'dealer'): Promise<any> {
+    async login(
+        email: string,
+        password: string,
+        role: 'customer' | 'agent' | 'dealer' | 'admin'
+    ): Promise<any> {
         const user = await UserModel.findByEmail(email);
 
         if (!user) {
