@@ -3,8 +3,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TXN_SOURCE = exports.TXN_TYPE = exports.CART_STATUS = exports.ORDER_STATUS = exports.BOOKING_STATUS = exports.ROLES = void 0;
 exports.ROLES = {
     CUSTOMER: 'customer',
+    TECHNICIAN: 'technician',
     AGENT: 'agent',
     DEALER: 'dealer',
+    ADMIN: 'admin',
 };
 exports.BOOKING_STATUS = {
     PENDING: 'pending',

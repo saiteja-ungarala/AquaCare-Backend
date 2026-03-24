@@ -16,6 +16,7 @@ exports.UserModel = void 0;
 exports.generateReferralCode = generateReferralCode;
 const db_1 = __importDefault(require("../config/db"));
 const crypto_1 = __importDefault(require("crypto"));
+const technician_domain_1 = require("../utils/technician-domain");
 /** Generate a unique referral code like AQ1X3K7P */
 function generateReferralCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
@@ -29,7 +30,7 @@ exports.UserModel = {
     create(user) {
         return __awaiter(this, void 0, void 0, function* () {
             const referralCode = user.referral_code || generateReferralCode();
-            const [result] = yield db_1.default.query(`INSERT INTO users (role, full_name, email, phone, password_hash, referral_code, referred_by) VALUES (?, ?, ?, ?, ?, ?, ?)`, [user.role, user.full_name, user.email, user.phone, user.password_hash, referralCode, user.referred_by || null]);
+            const [result] = yield db_1.default.query(`INSERT INTO users (role, full_name, email, phone, password_hash, referral_code, referred_by) VALUES (?, ?, ?, ?, ?, ?, ?)`, [(0, technician_domain_1.normalizeRoleValue)(user.role), user.full_name, user.email, user.phone, user.password_hash, referralCode, user.referred_by || null]);
             return result.insertId;
         });
     },

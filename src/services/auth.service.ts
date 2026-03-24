@@ -10,6 +10,7 @@ import { SmsService } from './sms.service';
 import { EmailService } from './email.service';
 import { FirebaseAdminService } from './firebase-admin.service';
 import { env } from '../config/env';
+import { normalizeRoleValue, rolesMatch } from '../utils/technician-domain';
 
 const OTP_EXPIRY_MS = 5 * 60 * 1000;
 const SESSION_EXPIRY_MS = 15 * 60 * 1000;
@@ -64,12 +65,10 @@ const assertIndianPhone = (phone: string) => {
 
 const isRoleAllowedForUser = (
     user: User,
-    role: 'customer' | 'agent' | 'dealer' | 'admin'
+    role: 'customer' | 'technician' | 'dealer' | 'admin'
 ): boolean => {
-    if (user.role === 'admin') return true;
-    return role === 'agent'
-        ? user.role === 'agent'
-        : user.role === role;
+    if (normalizeRoleValue(user.role) === 'admin') return true;
+    return rolesMatch(user.role, role);
 };
 
 const getSessionChannelState = (session: AuthOtpSession, channel: AuthOtpChannel) => {
@@ -430,8 +429,43 @@ export const AuthService = {
             );
         }
 
+<<<<<<< Updated upstream
         if (!session.sms_verified) {
             await AuthOtpSessionModel.markChannelVerified(session.session_token, 'sms');
+=======
+        let user = updatedSession.created_user_id
+            ? await UserModel.findById(updatedSession.created_user_id)
+            : null;
+
+        if (!user) {
+            const existingEmailUser = await UserModel.findByEmail(updatedSession.email);
+            if (existingEmailUser) {
+                throw createAppError(
+                    'This email is already registered. Please log in.',
+                    409,
+                    [{ field: 'email', message: 'This email is already registered.' }],
+                );
+            }
+
+            const existingPhoneUser = await UserModel.findByPhone(updatedSession.phone);
+            if (existingPhoneUser) {
+                throw createAppError(
+                    'This phone number is already registered. Please log in.',
+                    409,
+                    [{ field: 'phone', message: 'This phone number is already registered.' }],
+                );
+            }
+
+            user = await createUserAccount({
+                role: normalizeRoleValue(updatedSession.role) as User['role'],
+                full_name: updatedSession.full_name || '',
+                email: updatedSession.email,
+                phone: updatedSession.phone,
+                password_hash: updatedSession.password_hash || '',
+            });
+
+            await AuthOtpSessionModel.setCreatedUser(updatedSession.session_token, user.id!);
+>>>>>>> Stashed changes
         }
 
         const updatedSession = assertValidSession(await AuthOtpSessionModel.findBySessionToken(sessionToken), 'signup');
@@ -467,7 +501,7 @@ export const AuthService = {
     async login(
         email: string,
         password: string,
-        role: 'customer' | 'agent' | 'dealer' | 'admin'
+        role: 'customer' | 'technician' | 'dealer' | 'admin'
     ): Promise<any> {
         const user = await UserModel.findByEmail(email);
 
@@ -500,7 +534,7 @@ export const AuthService = {
         return { user: this.sanitizeUser(user), ...tokens };
     },
 
-    async initiateLoginOtp(phone: string, role: 'customer' | 'agent' | 'dealer'): Promise<any> {
+    async initiateLoginOtp(phone: string, role: 'customer' | 'technician' | 'dealer'): Promise<any> {
         assertIndianPhone(phone);
 
         const user = await UserModel.findByPhone(phone);
@@ -540,7 +574,7 @@ export const AuthService = {
         await AuthOtpSessionModel.create({
             session_token: sessionToken,
             purpose: 'login',
-            role: user.role,
+            role: normalizeRoleValue(user.role),
             user_id: user.id || null,
             created_user_id: null,
             full_name: user.full_name,
@@ -632,8 +666,9 @@ export const AuthService = {
     },
 
     async generateTokens(user: User) {
+        const normalizedRole = normalizeRoleValue(user.role);
         const accessToken = jwt.sign(
-            { id: user.id, role: user.role, email: user.email },
+            { id: user.id, role: normalizedRole, email: user.email },
             env.JWT_SECRET,
             { expiresIn: env.JWT_ACCESS_EXPIRY } as jwt.SignOptions
         );
@@ -653,7 +688,10 @@ export const AuthService = {
 
     sanitizeUser(user: User) {
         const { password_hash, ...rest } = user;
-        return rest;
+        return {
+            ...rest,
+            role: normalizeRoleValue(rest.role),
+        };
     },
 
     async sendOTP(phone: string): Promise<void> {

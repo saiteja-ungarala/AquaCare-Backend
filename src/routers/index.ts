@@ -7,7 +7,7 @@ import OrderRoutes from './orders.routes';
 import WalletRoutes from './wallet.routes';
 import ProfileRoutes from './profile.routes';
 import StoreRoutes from './store.routes';
-import AgentRoutes from './agent.routes';
+import TechnicianRoutes from './technician.routes';
 import DealerRoutes from './dealer.routes';
 import PaymentRoutes from './payment.routes';
 import AdminRoutes from './admin.routes';
@@ -24,7 +24,8 @@ router.use('/orders', OrderRoutes);
 router.use('/wallet', WalletRoutes);
 router.use('/user', ProfileRoutes);
 router.use('/store', StoreRoutes); // store commerce domain: categories + advanced product listing/detail
-router.use('/agent', AgentRoutes);
+router.use('/technician', TechnicianRoutes);
+router.use('/agent', TechnicianRoutes);
 router.use('/dealer', DealerRoutes);
 router.use('/payments', PaymentRoutes);
 router.use('/admin', AdminRoutes);

@@ -7,6 +7,7 @@ exports.requireRole = exports.authorize = exports.authenticate = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const env_1 = require("../config/env");
 const response_1 = require("../utils/response");
+const technician_domain_1 = require("../utils/technician-domain");
 const authenticate = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -27,7 +28,9 @@ const authorize = (roles) => (req, res, next) => {
     if (!req.user) {
         return (0, response_1.errorResponse)(res, 'Unauthorized', 401);
     }
-    if (!roles.includes(req.user.role)) {
+    const userRole = req.user.role;
+    const isAuthorized = roles.some((role) => (0, technician_domain_1.rolesMatch)(userRole, role));
+    if (!isAuthorized) {
         return (0, response_1.errorResponse)(res, 'Forbidden: Insufficient permissions', 403);
     }
     next();
@@ -39,7 +42,7 @@ const requireRole = (role) => {
             return (0, response_1.errorResponse)(res, 'Unauthorized', 401);
         }
         const userRole = req.user.role;
-        if (userRole !== role) {
+        if (!(0, technician_domain_1.rolesMatch)(userRole, role)) {
             return (0, response_1.errorResponse)(res, 'Forbidden: Insufficient permissions', 403);
         }
         next();

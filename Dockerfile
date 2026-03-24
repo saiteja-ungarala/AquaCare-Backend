@@ -31,7 +31,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 
 # Create the uploads directory (needs to exist at runtime)
-RUN mkdir -p uploads/agent-kyc uploads/dealer-kyc uploads/banners uploads/products
+RUN mkdir -p uploads/technician-kyc uploads/agent-kyc uploads/dealer-kyc uploads/banners uploads/products
 
 # Copy bundled public asset uploads that already exist in the repo
 COPY uploads/banners ./seed-uploads/banners

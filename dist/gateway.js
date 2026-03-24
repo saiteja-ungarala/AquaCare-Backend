@@ -135,6 +135,7 @@ app.post('/api/auth/verify-otp', authLegacyVerifyOtpLimiter);
 app.post('/api/auth/login/send-otp', authLoginSendOtpLimiter);
 app.post('/api/auth/login/resend-otp', authLoginResendOtpLimiter);
 app.post('/api/auth/login/verify-otp', authLoginVerifyOtpLimiter);
+app.use('/api/technician/kyc', kycUploadLimiter);
 app.use('/api/agent/kyc', kycUploadLimiter);
 app.use('/api/dealer/kyc', kycUploadLimiter);
 app.use('/api/auth/refresh', authRefreshLimiter);

@@ -35,7 +35,7 @@ const mapOrderStatusBucket = (status) => {
     return 'active';
 };
 const mapOrderSummary = (order) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     return ({
         id: Number(order.id),
         user_id: Number(order.user_id),
@@ -49,19 +49,20 @@ const mapOrderSummary = (order) => {
         total_amount: Number((_e = order.total_amount) !== null && _e !== void 0 ? _e : 0),
         created_at: order.created_at,
         updated_at: (_f = order.updated_at) !== null && _f !== void 0 ? _f : null,
-        referred_by_agent_id: (_g = order.referred_by_agent_id) !== null && _g !== void 0 ? _g : null,
-        referral_code_used: (_h = order.referral_code_used) !== null && _h !== void 0 ? _h : null,
-        item_count: Number((_j = order.item_count) !== null && _j !== void 0 ? _j : 0),
+        referred_by_technician_id: (_g = order.referred_by_technician_id) !== null && _g !== void 0 ? _g : null,
+        referred_by_agent_id: (_h = order.referred_by_technician_id) !== null && _h !== void 0 ? _h : null,
+        referral_code_used: (_j = order.referral_code_used) !== null && _j !== void 0 ? _j : null,
+        item_count: Number((_k = order.item_count) !== null && _k !== void 0 ? _k : 0),
         first_item: order.first_product_name || order.first_product_image
             ? {
-                product_name: (_k = order.first_product_name) !== null && _k !== void 0 ? _k : null,
-                image_url: (_l = order.first_product_image) !== null && _l !== void 0 ? _l : null,
+                product_name: (_l = order.first_product_name) !== null && _l !== void 0 ? _l : null,
+                image_url: (_m = order.first_product_image) !== null && _m !== void 0 ? _m : null,
             }
             : null,
     });
 };
 const mapOrderDetail = (order) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
     return ({
         id: Number(order.id),
         user_id: Number(order.user_id),
@@ -75,8 +76,9 @@ const mapOrderDetail = (order) => {
         total_amount: Number((_e = order.total_amount) !== null && _e !== void 0 ? _e : 0),
         created_at: order.created_at,
         updated_at: (_f = order.updated_at) !== null && _f !== void 0 ? _f : null,
-        referred_by_agent_id: (_g = order.referred_by_agent_id) !== null && _g !== void 0 ? _g : null,
-        referral_code_used: (_h = order.referral_code_used) !== null && _h !== void 0 ? _h : null,
+        referred_by_technician_id: (_g = order.referred_by_technician_id) !== null && _g !== void 0 ? _g : null,
+        referred_by_agent_id: (_h = order.referred_by_technician_id) !== null && _h !== void 0 ? _h : null,
+        referral_code_used: (_j = order.referral_code_used) !== null && _j !== void 0 ? _j : null,
         address: order.address,
         items: Array.isArray(order.items)
             ? order.items.map((item) => {
@@ -196,8 +198,8 @@ exports.OrderService = {
             const connection = yield db_1.default.getConnection();
             try {
                 yield connection.beginTransaction();
-                const referredByAgentId = yield referralCommission_service_1.ReferralCommissionService.findAgentIdByReferralCode(connection, validReferralCode);
-                const referralCodeUsed = referredByAgentId ? validReferralCode : null;
+                const referredByTechnicianId = yield referralCommission_service_1.ReferralCommissionService.findTechnicianIdByReferralCode(connection, validReferralCode);
+                const referralCodeUsed = referredByTechnicianId ? validReferralCode : null;
                 // Check Wallet if needed
                 if (data.payment_method === 'wallet') {
                     const balance = yield wallet_model_1.WalletModel.getBalance(userId);
@@ -210,11 +212,11 @@ exports.OrderService = {
                     yield connection.query('UPDATE wallets SET balance = balance - ? WHERE user_id = ?', [totalAmount, userId]);
                 }
                 // Create Order
-                const [orderResult] = yield connection.query(`INSERT INTO orders (user_id, address_id, status, payment_status, subtotal, delivery_fee, total_amount, referred_by_agent_id, referral_code_used) 
+                const [orderResult] = yield connection.query(`INSERT INTO orders (user_id, address_id, status, payment_status, subtotal, delivery_fee, total_amount, referred_by_technician_id, referral_code_used) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
                     userId, data.address_id, constants_1.ORDER_STATUS.PENDING,
                     data.payment_method === 'wallet' ? 'paid' : 'pending',
-                    subtotal, deliveryFee, totalAmount, referredByAgentId, referralCodeUsed
+                    subtotal, deliveryFee, totalAmount, referredByTechnicianId, referralCodeUsed
                 ]);
                 const orderId = orderResult.insertId;
                 // Create Order Items
@@ -223,7 +225,7 @@ exports.OrderService = {
                 // Generate referral-attributed commissions in the same DB transaction.
                 yield referralCommission_service_1.ReferralCommissionService.generateCommissionsForOrder(connection, {
                     orderId,
-                    agentId: referredByAgentId,
+                    technicianId: referredByTechnicianId,
                 });
                 // Update Wallet Reference ID if wallet payment
                 if (data.payment_method === 'wallet') {
@@ -237,7 +239,8 @@ exports.OrderService = {
                     totalAmount,
                     status: 'pending',
                     paymentStatus: data.payment_method === 'wallet' ? 'paid' : 'pending',
-                    referred_by_agent_id: referredByAgentId,
+                    referred_by_technician_id: referredByTechnicianId,
+                    referred_by_agent_id: referredByTechnicianId,
                     referral_code_used: referralCodeUsed,
                 };
             }

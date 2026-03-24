@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ResetPasswordSchema = exports.LoginOtpVerifySchema = exports.LoginOtpResendSchema = exports.LoginOtpStartSchema = exports.SignupResendOtpSchema = exports.SignupVerifyOtpSchema = exports.SignupInitiateSchema = exports.VerifyOtpSchema = exports.SendOtpSchema = exports.RefreshSchema = exports.ForgotPasswordSchema = exports.LoginSchema = exports.SignupSchema = void 0;
 const zod_1 = require("zod");
+const technician_domain_1 = require("../utils/technician-domain");
 // bcrypt silently truncates passwords longer than 72 bytes.
 // Rejecting passwords > 72 chars prevents a subtle auth bypass where two
 // different long passwords hash to the same bcrypt digest.
@@ -24,12 +25,13 @@ const fullNameField = zod_1.z
     .string()
     .min(2, 'Full name must be at least 2 characters')
     .max(100, 'Full name must be 100 characters or fewer');
-const roleField = zod_1.z.enum(['customer', 'agent', 'dealer'], {
+const normalizeRoleInput = (value) => (typeof value === 'string' ? (0, technician_domain_1.normalizeRoleValue)(value) : value);
+const roleField = zod_1.z.preprocess(normalizeRoleInput, zod_1.z.enum(['customer', 'technician', 'dealer'], {
     errorMap: () => ({ message: 'Please select a valid role' }),
-});
-const loginRoleField = zod_1.z.enum(['customer', 'agent', 'dealer', 'admin'], {
+}));
+const loginRoleField = zod_1.z.preprocess(normalizeRoleInput, zod_1.z.enum(['customer', 'technician', 'dealer', 'admin'], {
     errorMap: () => ({ message: 'Please select a valid role' }),
-});
+}));
 const otpChannelField = zod_1.z.enum(['email', 'sms', 'whatsapp']);
 const otpField = zod_1.z.string().regex(/^\d{6}$/, 'OTP must be exactly 6 digits');
 const sessionTokenField = zod_1.z.string().min(16, 'Session token is required');

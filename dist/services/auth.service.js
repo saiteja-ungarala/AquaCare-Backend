@@ -35,6 +35,7 @@ const auth_otp_session_model_1 = require("../models/auth-otp-session.model");
 const sms_service_1 = require("./sms.service");
 const email_service_1 = require("./email.service");
 const env_1 = require("../config/env");
+const technician_domain_1 = require("../utils/technician-domain");
 const OTP_EXPIRY_MS = 5 * 60 * 1000;
 const SESSION_EXPIRY_MS = 15 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
@@ -65,11 +66,9 @@ const assertIndianPhone = (phone) => {
     }
 };
 const isRoleAllowedForUser = (user, role) => {
-    if (user.role === 'admin')
+    if ((0, technician_domain_1.normalizeRoleValue)(user.role) === 'admin')
         return true;
-    return role === 'agent'
-        ? user.role === 'agent'
-        : user.role === role;
+    return (0, technician_domain_1.rolesMatch)(user.role, role);
 };
 const getSessionChannelState = (session, channel) => {
     if (channel === 'email') {
@@ -288,7 +287,7 @@ exports.AuthService = {
                     throw createAppError('This phone number is already registered. Please log in.', 409, [{ field: 'phone', message: 'This phone number is already registered.' }]);
                 }
                 user = yield createUserAccount({
-                    role: updatedSession.role,
+                    role: (0, technician_domain_1.normalizeRoleValue)(updatedSession.role),
                     full_name: updatedSession.full_name || '',
                     email: updatedSession.email,
                     phone: updatedSession.phone,
@@ -351,7 +350,7 @@ exports.AuthService = {
             yield auth_otp_session_model_1.AuthOtpSessionModel.create({
                 session_token: sessionToken,
                 purpose: 'login',
-                role: user.role,
+                role: (0, technician_domain_1.normalizeRoleValue)(user.role),
                 user_id: user.id || null,
                 created_user_id: null,
                 full_name: user.full_name,
@@ -431,7 +430,8 @@ exports.AuthService = {
     },
     generateTokens(user) {
         return __awaiter(this, void 0, void 0, function* () {
-            const accessToken = jsonwebtoken_1.default.sign({ id: user.id, role: user.role, email: user.email }, env_1.env.JWT_SECRET, { expiresIn: env_1.env.JWT_ACCESS_EXPIRY });
+            const normalizedRole = (0, technician_domain_1.normalizeRoleValue)(user.role);
+            const accessToken = jsonwebtoken_1.default.sign({ id: user.id, role: normalizedRole, email: user.email }, env_1.env.JWT_SECRET, { expiresIn: env_1.env.JWT_ACCESS_EXPIRY });
             const refreshToken = jsonwebtoken_1.default.sign({ id: user.id, jti: (0, crypto_1.randomUUID)() }, env_1.env.JWT_REFRESH_SECRET, { expiresIn: env_1.env.JWT_REFRESH_EXPIRY });
             const expiresAt = new Date();
             expiresAt.setDate(expiresAt.getDate() + 7);
@@ -441,7 +441,7 @@ exports.AuthService = {
     },
     sanitizeUser(user) {
         const { password_hash } = user, rest = __rest(user, ["password_hash"]);
-        return rest;
+        return Object.assign(Object.assign({}, rest), { role: (0, technician_domain_1.normalizeRoleValue)(rest.role) });
     },
     sendOTP(phone) {
         return __awaiter(this, void 0, void 0, function* () {

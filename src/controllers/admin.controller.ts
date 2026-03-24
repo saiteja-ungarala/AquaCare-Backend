@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import pool from '../config/db';
 import { RowDataPacket, OkPacket } from 'mysql2';
 import { successResponse, errorResponse } from '../utils/response';
+import { buildRoleCondition, getCompatibleTechnicianId, normalizeRoleValue } from '../utils/technician-domain';
 
 
 async function getKycListPaginated(
@@ -84,16 +85,16 @@ async function getKycListPaginated(
     };
 }
 
-// ─── Agent KYC ──────────────────────────────────────────────────────────────
+// ─── Technician KYC ─────────────────────────────────────────────────────────
 
-export const listAgentKyc = async (req: Request, res: Response, next: NextFunction) => {
+export const listTechnicianKyc = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const status = req.query.status as string | undefined;
         const search = req.query.search as string | undefined;
         const page = Math.max(1, parseInt(req.query.page as string) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
         const result = await getKycListPaginated(
-            'agent_profiles', 'agent_kyc_documents', 'agent_id', status, search, page, limit
+            'technician_profiles', 'technician_kyc_documents', 'technician_id', status, search, page, limit
         );
         return successResponse(res, result);
     } catch (error) {
@@ -101,54 +102,54 @@ export const listAgentKyc = async (req: Request, res: Response, next: NextFuncti
     }
 };
 
-export const approveAgentKyc = async (req: Request, res: Response, next: NextFunction) => {
+export const approveTechnicianKyc = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const adminId = (req.user as any).id;
-        const agentId = Number(req.params.agentId);
-        const { review_notes } = req.body;
+        const technicianId = Number(req.params.technicianId || req.params.agentId);
+        const review_notes = req.body.review_notes ?? req.body.notes;
 
         await pool.query(
-            `UPDATE agent_profiles SET verification_status = 'approved' WHERE user_id = ?`,
-            [agentId]
+            `UPDATE technician_profiles SET verification_status = 'approved' WHERE user_id = ?`,
+            [technicianId]
         );
         await pool.query(
-            `UPDATE agent_kyc_documents
+            `UPDATE technician_kyc_documents
              SET status = 'approved', reviewed_by = ?, reviewed_at = NOW()
              ${review_notes ? ', review_notes = ?' : ''}
-             WHERE agent_id = ?`,
-            review_notes ? [adminId, review_notes, agentId] : [adminId, agentId]
+             WHERE technician_id = ?`,
+            review_notes ? [adminId, review_notes, technicianId] : [adminId, technicianId]
         );
 
-        await logAdminAction(adminId, 'approved_agent_kyc', 'agent', agentId);
-        return successResponse(res, null, 'Agent KYC approved');
+        await logAdminAction(adminId, 'approved_technician_kyc', 'technician', technicianId);
+        return successResponse(res, null, 'Technician KYC approved');
     } catch (error) {
         next(error);
     }
 };
 
-export const rejectAgentKyc = async (req: Request, res: Response, next: NextFunction) => {
+export const rejectTechnicianKyc = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const adminId = (req.user as any).id;
-        const agentId = Number(req.params.agentId);
-        const { review_notes } = req.body;
+        const technicianId = Number(req.params.technicianId || req.params.agentId);
+        const review_notes = req.body.review_notes ?? req.body.notes;
 
         if (!review_notes || String(review_notes).trim() === '') {
             return errorResponse(res, 'review_notes is required when rejecting', 400);
         }
 
         await pool.query(
-            `UPDATE agent_profiles SET verification_status = 'rejected' WHERE user_id = ?`,
-            [agentId]
+            `UPDATE technician_profiles SET verification_status = 'rejected' WHERE user_id = ?`,
+            [technicianId]
         );
         await pool.query(
-            `UPDATE agent_kyc_documents
+            `UPDATE technician_kyc_documents
              SET status = 'rejected', review_notes = ?, reviewed_by = ?, reviewed_at = NOW()
-             WHERE agent_id = ?`,
-            [review_notes, adminId, agentId]
+             WHERE technician_id = ?`,
+            [review_notes, adminId, technicianId]
         );
 
-        await logAdminAction(adminId, 'rejected_agent_kyc', 'agent', agentId, { review_notes });
-        return successResponse(res, null, 'Agent KYC rejected');
+        await logAdminAction(adminId, 'rejected_technician_kyc', 'technician', technicianId, { review_notes });
+        return successResponse(res, null, 'Technician KYC rejected');
     } catch (error) {
         next(error);
     }
@@ -175,7 +176,7 @@ export const approveDealerKyc = async (req: Request, res: Response, next: NextFu
     try {
         const adminId = (req.user as any).id;
         const dealerId = Number(req.params.dealerId);
-        const { review_notes } = req.body;
+        const review_notes = req.body.review_notes ?? req.body.notes;
 
         await pool.query(
             `UPDATE dealer_profiles SET verification_status = 'approved' WHERE user_id = ?`,
@@ -200,7 +201,7 @@ export const rejectDealerKyc = async (req: Request, res: Response, next: NextFun
     try {
         const adminId = (req.user as any).id;
         const dealerId = Number(req.params.dealerId);
-        const { review_notes } = req.body;
+        const review_notes = req.body.review_notes ?? req.body.notes;
 
         if (!review_notes || String(review_notes).trim() === '') {
             return errorResponse(res, 'review_notes is required when rejecting', 400);
@@ -226,34 +227,39 @@ export const rejectDealerKyc = async (req: Request, res: Response, next: NextFun
 
 // ─── KYC Detail & Stats ──────────────────────────────────────────────────────
 
-export const getAgentKycDetail = async (req: Request, res: Response, next: NextFunction) => {
+export const getTechnicianKycDetail = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const agentId = Number(req.params.agentId);
+        const technicianId = Number(req.params.technicianId || req.params.agentId);
 
         const [userRows] = await pool.query<RowDataPacket[]>(
             `SELECT u.id, u.full_name, u.email, u.phone, u.role, u.is_active, u.created_at,
-                    ap.verification_status, ap.created_at AS profile_created_at
+                    tp.verification_status, tp.created_at AS profile_created_at
              FROM users u
-             JOIN agent_profiles ap ON ap.user_id = u.id
+             JOIN technician_profiles tp ON tp.user_id = u.id
              WHERE u.id = ?`,
-            [agentId]
+            [technicianId]
         );
-        if (userRows.length === 0) return errorResponse(res, 'Agent not found', 404);
+        if (userRows.length === 0) return errorResponse(res, 'Technician not found', 404);
 
         const [docRows] = await pool.query<RowDataPacket[]>(
             `SELECT d.id, d.doc_type, d.file_url, d.status,
                     d.reviewed_at, d.review_notes,
                     rev.full_name AS reviewed_by_name
-             FROM agent_kyc_documents d
+             FROM technician_kyc_documents d
              LEFT JOIN users rev ON rev.id = d.reviewed_by
-             WHERE d.agent_id = ?
+             WHERE d.technician_id = ?
              ORDER BY d.id ASC`,
-            [agentId]
+            [technicianId]
         );
 
         return successResponse(res, { ...userRows[0], documents: docRows });
     } catch (error) { next(error); }
 };
+
+export const listAgentKyc = listTechnicianKyc;
+export const approveAgentKyc = approveTechnicianKyc;
+export const rejectAgentKyc = rejectTechnicianKyc;
+export const getAgentKycDetail = getTechnicianKycDetail;
 
 export const getDealerKycDetail = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -287,10 +293,10 @@ export const getDealerKycDetail = async (req: Request, res: Response, next: Next
 
 export const getKycStats = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const [[agentRows], [dealerRows]] = await Promise.all([
+        const [[technicianRows], [dealerRows]] = await Promise.all([
             pool.query<RowDataPacket[]>(
                 `SELECT COALESCE(verification_status, 'unverified') AS status, COUNT(*) AS cnt
-                 FROM agent_profiles GROUP BY COALESCE(verification_status, 'unverified')`
+                 FROM technician_profiles GROUP BY COALESCE(verification_status, 'unverified')`
             ),
             pool.query<RowDataPacket[]>(
                 `SELECT COALESCE(verification_status, 'unverified') AS status, COUNT(*) AS cnt
@@ -304,8 +310,10 @@ export const getKycStats = async (req: Request, res: Response, next: NextFunctio
             return map;
         };
 
+        const technicians = toCounts(technicianRows);
         return successResponse(res, {
-            agents: toCounts(agentRows),
+            technicians,
+            agents: technicians,
             dealers: toCounts(dealerRows),
         });
     } catch (error) { next(error); }
@@ -320,8 +328,9 @@ export const listUsers = async (req: Request, res: Response, next: NextFunction)
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
         const offset = (page - 1) * limit;
 
-        const whereClause = role ? 'WHERE role = ?' : '';
-        const params: any[] = role ? [role] : [];
+        const roleCondition = buildRoleCondition('role', role);
+        const whereClause = roleCondition ? `WHERE ${roleCondition.clause}` : '';
+        const params: any[] = roleCondition ? [...roleCondition.params] : [];
 
         const [countRows] = await pool.query<RowDataPacket[]>(
             `SELECT COUNT(*) as total FROM users ${whereClause}`,
@@ -338,8 +347,13 @@ export const listUsers = async (req: Request, res: Response, next: NextFunction)
             [...params, limit, offset]
         );
 
+        const normalizedRows = rows.map((row) => ({
+            ...row,
+            role: normalizeRoleValue(String(row.role || '')),
+        }));
+
         return successResponse(res, {
-            users: rows,
+            users: normalizedRows,
             pagination: {
                 page,
                 limit,
@@ -388,9 +402,9 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
     try {
         const results = await Promise.all([
             pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS cnt FROM users WHERE role = 'customer'`),
-            pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS cnt FROM users WHERE role = 'agent'`),
+            pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS cnt FROM users WHERE role = 'technician'`),
             pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS cnt FROM users WHERE role = 'dealer'`),
-            pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS cnt FROM agent_profiles WHERE verification_status = 'pending'`),
+            pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS cnt FROM technician_profiles WHERE verification_status = 'pending'`),
             pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS cnt FROM dealer_profiles WHERE verification_status = 'pending'`),
             pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS cnt FROM bookings`),
             pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS cnt FROM bookings WHERE DATE(created_at) = CURDATE()`),
@@ -417,8 +431,10 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
 
         return successResponse(res, {
             totalCustomers: cnt(0),
+            totalTechnicians: cnt(1),
             totalAgents: cnt(1),
             totalDealers: cnt(2),
+            pendingTechnicianKyc: cnt(3),
             pendingAgentKyc: cnt(3),
             pendingDealerKyc: cnt(4),
             totalBookings: cnt(5),
@@ -892,13 +908,14 @@ export const adminListBookings = async (req: Request, res: Response, next: NextF
         const page = Math.max(1, parseInt(req.query.page as string) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
         const offset = (page - 1) * limit;
-        const { status, date_from, date_to, agent_id } = req.query;
+        const { status, date_from, date_to, agent_id, technician_id } = req.query;
 
         const conditions: string[] = [];
         const params: any[] = [];
 
         if (status) { conditions.push('b.status = ?'); params.push(status); }
-        if (agent_id) { conditions.push('b.agent_id = ?'); params.push(Number(agent_id)); }
+        const technicianFilterId = technician_id || agent_id;
+        if (technicianFilterId) { conditions.push('b.technician_id = ?'); params.push(Number(technicianFilterId)); }
         if (date_from) { conditions.push('b.created_at >= ?'); params.push(date_from); }
         if (date_to) { conditions.push('b.created_at <= ?'); params.push(date_to); }
 
@@ -911,14 +928,16 @@ export const adminListBookings = async (req: Request, res: Response, next: NextF
 
         const [rows] = await pool.query<RowDataPacket[]>(
             `SELECT b.*,
+                    b.technician_id AS agent_id,
                     u.full_name  AS customer_name,  u.phone  AS customer_phone,
                     s.name       AS service_name,
+                    a.full_name  AS technician_name,
                     a.full_name  AS agent_name,
                     addr.line1   AS address_line1,  addr.city AS address_city
              FROM bookings b
              LEFT JOIN users    u    ON u.id    = b.user_id
              LEFT JOIN services s    ON s.id    = b.service_id
-             LEFT JOIN users    a    ON a.id    = b.agent_id
+             LEFT JOIN users    a    ON a.id    = b.technician_id
              LEFT JOIN addresses addr ON addr.id = b.address_id
              ${where}
              ORDER BY b.created_at DESC
@@ -927,7 +946,13 @@ export const adminListBookings = async (req: Request, res: Response, next: NextF
         );
 
         return successResponse(res, {
-            items: rows,
+            items: rows.map((row) => ({
+                ...row,
+                technician_id: row.technician_id,
+                agent_id: row.agent_id ?? row.technician_id,
+                technician_name: row.technician_name ?? row.agent_name ?? null,
+                agent_name: row.agent_name ?? row.technician_name ?? null,
+            })),
             pagination: { page, limit, totalItems: total, totalPages: Math.ceil(total / limit) },
         });
     } catch (error) { next(error); }
@@ -939,9 +964,14 @@ export const adminGetBookingDetail = async (req: Request, res: Response, next: N
 
         const [bookingRows] = await pool.query<RowDataPacket[]>(
             `SELECT b.*,
+                    b.technician_id AS agent_id,
                     cu.id         AS customer_id,   cu.full_name AS customer_name,
                     cu.phone      AS customer_phone, cu.email     AS customer_email,
-                    au.id         AS agent_id_val,   au.full_name AS agent_name,
+                    au.id         AS technician_id_val,
+                    au.id         AS agent_id_val,
+                    au.full_name  AS technician_name,
+                    au.full_name  AS agent_name,
+                    au.phone      AS technician_phone,
                     au.phone      AS agent_phone,
                     s.name        AS service_name,   s.category   AS service_category,
                     s.duration_minutes,              s.base_price AS service_base_price,
@@ -949,7 +979,7 @@ export const adminGetBookingDetail = async (req: Request, res: Response, next: N
                     addr.postal_code, addr.country
              FROM bookings b
              LEFT JOIN users    cu   ON cu.id   = b.user_id
-             LEFT JOIN users    au   ON au.id   = b.agent_id
+             LEFT JOIN users    au   ON au.id   = b.technician_id
              LEFT JOIN services s    ON s.id    = b.service_id
              LEFT JOIN addresses addr ON addr.id = b.address_id
              WHERE b.id = ?`,
@@ -965,9 +995,12 @@ export const adminGetBookingDetail = async (req: Request, res: Response, next: N
                 [id]
             ),
             pool.query<RowDataPacket[]>(
-                `SELECT bu.*, u.full_name AS agent_name
+                `SELECT bu.*,
+                        bu.technician_id AS agent_id,
+                        u.full_name AS technician_name,
+                        u.full_name AS agent_name
                  FROM booking_updates bu
-                 LEFT JOIN users u ON u.id = bu.agent_id
+                 LEFT JOIN users u ON u.id = bu.technician_id
                  WHERE bu.booking_id = ?
                  ORDER BY bu.created_at ASC`,
                 [id]
@@ -976,6 +1009,8 @@ export const adminGetBookingDetail = async (req: Request, res: Response, next: N
 
         return successResponse(res, {
             ...bookingRows[0],
+            agent_id: bookingRows[0].agent_id ?? bookingRows[0].technician_id,
+            technician_id: bookingRows[0].technician_id,
             payment: paymentRows[0] ?? null,
             updates: updateRows,
         });
@@ -986,21 +1021,24 @@ export const adminAssignBooking = async (req: Request, res: Response, next: Next
     try {
         const adminId = (req.user as any).id;
         const id = Number(req.params.id);
-        const { agent_id } = req.body;
+        const technicianId = getCompatibleTechnicianId(req.body);
 
-        if (!agent_id) return errorResponse(res, 'agent_id is required', 400);
+        if (!technicianId) return errorResponse(res, 'Technician ID is required', 400);
 
-        const [agentRows] = await pool.query<RowDataPacket[]>(
-            `SELECT id FROM users WHERE id = ? AND role = 'agent'`, [agent_id]
+        const [technicianRows] = await pool.query<RowDataPacket[]>(
+            `SELECT id FROM users WHERE id = ? AND role = 'technician'`, [technicianId]
         );
-        if (agentRows.length === 0) return errorResponse(res, 'Agent not found', 404);
+        if (technicianRows.length === 0) return errorResponse(res, 'Technician not found', 404);
 
         await pool.query(
-            `UPDATE bookings SET agent_id = ?, status = 'assigned', assigned_at = NOW() WHERE id = ?`,
-            [agent_id, id]
+            `UPDATE bookings SET technician_id = ?, status = 'assigned', assigned_at = NOW() WHERE id = ?`,
+            [technicianId, id]
         );
 
-        await logAdminAction(adminId, 'assigned_booking', 'booking', id, { agent_id: Number(agent_id) });
+        await logAdminAction(adminId, 'assigned_booking', 'booking', id, {
+            technician_id: technicianId,
+            agent_id: technicianId,
+        });
         return successResponse(res, null, 'Booking assigned');
     } catch (error) { next(error); }
 };

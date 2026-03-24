@@ -399,7 +399,8 @@
       color: #2b6cb0;
     }
 
-    .role-badge.agent {
+    .role-badge.agent,
+    .role-badge.technician {
       background: #fefcbf;
       color: #744210;
     }
@@ -509,7 +510,7 @@
     </header>
 
     <div class="tabs">
-      <button class="tab-btn active" data-tab="agents" onclick="switchTab('agents')">Pending Agents</button>
+      <button class="tab-btn active" data-tab="agents" onclick="switchTab('agents')">Pending Technicians</button>
       <button class="tab-btn" data-tab="dealers" onclick="switchTab('dealers')">Pending Dealers</button>
       <button class="tab-btn" data-tab="users" onclick="switchTab('users')">All Users</button>
     </div>
@@ -609,11 +610,12 @@
     // ── KYC Tab ────────────────────────────────────────────────────────────────
     async function loadKycTab(type) {
       const el = document.getElementById('tab-content');
-      const label = type === 'agents' ? 'Agent' : 'Dealer';
+      const label = type === 'agents' ? 'Technician' : 'Dealer';
+      const apiSegment = type === 'agents' ? 'technicians' : 'dealers';
       el.innerHTML = `<div class="loading">Loading ${label} KYC…</div>`;
 
       try {
-        const { ok, data } = await api('GET', `/admin/kyc/${type}?status=pending`);
+        const { ok, data } = await api('GET', `/admin/kyc/${apiSegment}?status=pending`);
         if (!ok) { el.innerHTML = `<div class="empty-state">Error loading data</div>`; return; }
 
         const list = data.data || [];
@@ -691,8 +693,7 @@
     async function handleApprove(type, userId, btn) {
       btn.disabled = true;
       btn.textContent = 'Approving…';
-      const idParam = type === 'agents' ? 'agentId' : 'dealerId';
-      const singular = type === 'agents' ? 'agents' : 'dealers';
+      const singular = type === 'agents' ? 'technicians' : 'dealers';
       try {
         const { ok, data } = await api('POST', `/admin/kyc/${singular}/${userId}/approve`, {});
         if (ok) {
@@ -714,7 +715,7 @@
       if (!notes) { showToast('Review notes are required', 'error'); return; }
       btn.disabled = true;
       btn.textContent = 'Rejecting…';
-      const singular = type === 'agents' ? 'agents' : 'dealers';
+      const singular = type === 'agents' ? 'technicians' : 'dealers';
       try {
         const { ok, data } = await api('POST', `/admin/kyc/${singular}/${userId}/reject`, { review_notes: notes });
         if (ok) {
@@ -750,7 +751,7 @@
         <select id="role-filter" onchange="changeRoleFilter(this.value)">
           <option value=""       ${!usersRole ? 'selected' : ''}>All roles</option>
           <option value="customer" ${usersRole === 'customer' ? 'selected' : ''}>Customer</option>
-          <option value="agent"    ${usersRole === 'agent' ? 'selected' : ''}>Agent</option>
+          <option value="technician" ${usersRole === 'technician' || usersRole === 'agent' ? 'selected' : ''}>Technician</option>
           <option value="dealer"   ${usersRole === 'dealer' ? 'selected' : ''}>Dealer</option>
           <option value="admin"    ${usersRole === 'admin' ? 'selected' : ''}>Admin</option>
         </select>
@@ -769,7 +770,7 @@
               <td>${esc(u.full_name)}</td>
               <td>${esc(u.email)}</td>
               <td>${esc(u.phone || '—')}</td>
-              <td><span class="role-badge ${u.role}">${u.role}</span></td>
+              <td><span class="role-badge ${u.role}">${formatRoleLabel(u.role)}</span></td>
               <td>${u.is_active ? '✓' : '✗'}</td>
               <td>${new Date(u.created_at).toLocaleDateString()}</td>
             </tr>`).join('')}
@@ -801,6 +802,15 @@
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
+    function formatRoleLabel(role) {
+      if (role === 'technician') return 'Technician';
+      if (role === 'agent') return 'Technician';
+      if (role === 'dealer') return 'Dealer';
+      if (role === 'customer') return 'Customer';
+      if (role === 'admin') return 'Admin';
+      return role || '';
+    }
+
     function esc(str) {
       if (!str) return '';
       return String(str)

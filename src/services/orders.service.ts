@@ -33,7 +33,8 @@ const mapOrderSummary = (order: any) => ({
     total_amount: Number(order.total_amount ?? 0),
     created_at: order.created_at,
     updated_at: order.updated_at ?? null,
-    referred_by_agent_id: order.referred_by_agent_id ?? null,
+    referred_by_technician_id: order.referred_by_technician_id ?? null,
+    referred_by_agent_id: order.referred_by_technician_id ?? null,
     referral_code_used: order.referral_code_used ?? null,
     item_count: Number(order.item_count ?? 0),
     first_item: order.first_product_name || order.first_product_image
@@ -57,7 +58,8 @@ const mapOrderDetail = (order: any) => ({
     total_amount: Number(order.total_amount ?? 0),
     created_at: order.created_at,
     updated_at: order.updated_at ?? null,
-    referred_by_agent_id: order.referred_by_agent_id ?? null,
+    referred_by_technician_id: order.referred_by_technician_id ?? null,
+    referred_by_agent_id: order.referred_by_technician_id ?? null,
     referral_code_used: order.referral_code_used ?? null,
     address: order.address,
     items: Array.isArray(order.items)
@@ -181,8 +183,8 @@ export const OrderService = {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
-            const referredByAgentId = await ReferralCommissionService.findAgentIdByReferralCode(connection, validReferralCode);
-            const referralCodeUsed = referredByAgentId ? validReferralCode : null;
+            const referredByTechnicianId = await ReferralCommissionService.findTechnicianIdByReferralCode(connection, validReferralCode);
+            const referralCodeUsed = referredByTechnicianId ? validReferralCode : null;
 
             // Check Wallet if needed
             if (data.payment_method === 'wallet') {
@@ -201,12 +203,12 @@ export const OrderService = {
 
             // Create Order
             const [orderResult] = await connection.query<any>(
-                `INSERT INTO orders (user_id, address_id, status, payment_status, subtotal, delivery_fee, total_amount, referred_by_agent_id, referral_code_used) 
+                `INSERT INTO orders (user_id, address_id, status, payment_status, subtotal, delivery_fee, total_amount, referred_by_technician_id, referral_code_used) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     userId, data.address_id, ORDER_STATUS.PENDING,
                     data.payment_method === 'wallet' ? 'paid' : 'pending',
-                    subtotal, deliveryFee, totalAmount, referredByAgentId, referralCodeUsed
+                    subtotal, deliveryFee, totalAmount, referredByTechnicianId, referralCodeUsed
                 ]
             );
             const orderId = orderResult.insertId;
@@ -221,7 +223,7 @@ export const OrderService = {
             // Generate referral-attributed commissions in the same DB transaction.
             await ReferralCommissionService.generateCommissionsForOrder(connection, {
                 orderId,
-                agentId: referredByAgentId,
+                technicianId: referredByTechnicianId,
             });
 
             // Update Wallet Reference ID if wallet payment
@@ -242,7 +244,8 @@ export const OrderService = {
                 totalAmount,
                 status: 'pending',
                 paymentStatus: data.payment_method === 'wallet' ? 'paid' : 'pending',
-                referred_by_agent_id: referredByAgentId,
+                referred_by_technician_id: referredByTechnicianId,
+                referred_by_agent_id: referredByTechnicianId,
                 referral_code_used: referralCodeUsed,
             };
 

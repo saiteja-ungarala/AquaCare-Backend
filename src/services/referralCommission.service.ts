@@ -1,7 +1,8 @@
 import pool from '../config/db';
 import { RowDataPacket } from 'mysql2';
 import { PoolConnection } from 'mysql2/promise';
-import { AgentModel } from '../models/agent.model';
+import { TechnicianModel } from '../models/technician.model';
+import { TECHNICIAN_ROLE } from '../utils/technician-domain';
 
 const REFERRAL_CODE_REGEX = /^[A-Z0-9]{3,32}$/;
 
@@ -79,7 +80,7 @@ export const ReferralCommissionService = {
         return REFERRAL_CODE_REGEX.test(referralCode);
     },
 
-    async findAgentIdByReferralCode(connection: PoolConnection, referralCode?: string | null): Promise<number | null> {
+    async findTechnicianIdByReferralCode(connection: PoolConnection, referralCode?: string | null): Promise<number | null> {
         if (!referralCode || !this.isValidReferralCodeFormat(referralCode)) {
             return null;
         }
@@ -87,9 +88,9 @@ export const ReferralCommissionService = {
         const [rows] = await connection.query<RowDataPacket[]>(
             `SELECT id
              FROM users
-             WHERE referral_code = ? AND role = 'agent'
+             WHERE referral_code = ? AND role = ?
              LIMIT 1`,
-            [referralCode]
+            [referralCode, TECHNICIAN_ROLE]
         );
 
         if (rows.length === 0) {
@@ -99,9 +100,9 @@ export const ReferralCommissionService = {
         return Number(rows[0].id);
     },
 
-    async generateCommissionsForOrder(connection: PoolConnection, params: { orderId: number; agentId: number | null }): Promise<void> {
-        const { orderId, agentId } = params;
-        if (!agentId) return;
+    async generateCommissionsForOrder(connection: PoolConnection, params: { orderId: number; technicianId: number | null }): Promise<void> {
+        const { orderId, technicianId } = params;
+        if (!technicianId) return;
 
         const activeCampaign = await this.getActiveCampaign(connection);
         const orderItems = await this.getOrderItemsForCommission(connection, orderId);
@@ -125,8 +126,8 @@ export const ReferralCommissionService = {
             const campaignIdForRow = matchedRule?.campaign_id ?? activeCampaign?.id ?? null;
 
             await connection.query(
-                `INSERT INTO agent_commissions
-                    (agent_id, order_id, order_item_id, product_id, qty, gross_amount, commission_amount, campaign_id, status)
+                `INSERT INTO technician_commissions
+                    (technician_id, order_id, order_item_id, product_id, qty, gross_amount, commission_amount, campaign_id, status)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
                  ON DUPLICATE KEY UPDATE
                     gross_amount = VALUES(gross_amount),
@@ -134,7 +135,7 @@ export const ReferralCommissionService = {
                     campaign_id = VALUES(campaign_id),
                     status = VALUES(status)`,
                 [
-                    agentId,
+                    technicianId,
                     orderId,
                     item.order_item_id,
                     item.product_id,
@@ -148,7 +149,7 @@ export const ReferralCommissionService = {
 
         if (activeCampaign) {
             await this.applyTierBonuses(connection, {
-                agentId,
+                technicianId,
                 campaignId: activeCampaign.id,
                 startAt: activeCampaign.start_at,
                 endAt: activeCampaign.end_at,
@@ -156,27 +157,27 @@ export const ReferralCommissionService = {
         }
     },
 
-    async getAgentReferralCode(agentId: number): Promise<string> {
-        return AgentModel.ensureReferralCode(agentId);
+    async getTechnicianReferralCode(technicianId: number): Promise<string> {
+        return TechnicianModel.ensureReferralCode(technicianId);
     },
 
-    async getAgentEarningsSummary(agentId: number): Promise<any> {
+    async getTechnicianEarningsSummary(technicianId: number): Promise<any> {
         const connection = await pool.getConnection();
         try {
             const [commissionRows] = await connection.query<RowDataPacket[]>(
                 `SELECT status, COALESCE(SUM(commission_amount), 0) AS total
-                 FROM agent_commissions
-                 WHERE agent_id = ?
+                 FROM technician_commissions
+                 WHERE technician_id = ?
                  GROUP BY status`,
-                [agentId]
+                [technicianId]
             );
 
             const [bonusRows] = await connection.query<RowDataPacket[]>(
                 `SELECT status, COALESCE(SUM(bonus_amount), 0) AS total
-                 FROM agent_commission_bonuses
-                 WHERE agent_id = ?
+                 FROM technician_commission_bonuses
+                 WHERE technician_id = ?
                  GROUP BY status`,
-                [agentId]
+                [technicianId]
             );
 
             const commissionTotals = buildStatusTotals(commissionRows, 'total');
@@ -192,7 +193,7 @@ export const ReferralCommissionService = {
             let campaignProgress: any = null;
 
             if (activeCampaign) {
-                const progress = await this.getCampaignProgressInternal(connection, agentId, activeCampaign.id, activeCampaign);
+                const progress = await this.getCampaignProgressInternal(connection, technicianId, activeCampaign.id, activeCampaign);
                 campaignProgress = {
                     campaign_id: activeCampaign.id,
                     sold_qty: progress.sold_qty,
@@ -311,7 +312,7 @@ export const ReferralCommissionService = {
         }
     },
 
-    async getCampaignProgress(agentId: number, campaignId: number): Promise<any> {
+    async getCampaignProgress(technicianId: number, campaignId: number): Promise<any> {
         const connection = await pool.getConnection();
         try {
             const [campaignRows] = await connection.query<CampaignRow[]>(
@@ -326,7 +327,7 @@ export const ReferralCommissionService = {
                 throw { type: 'AppError', message: 'Campaign not found', statusCode: 404 };
             }
 
-            return this.getCampaignProgressInternal(connection, agentId, campaignId, campaignRows[0]);
+            return this.getCampaignProgressInternal(connection, technicianId, campaignId, campaignRows[0]);
         } finally {
             connection.release();
         }
@@ -494,20 +495,20 @@ export const ReferralCommissionService = {
     },
 
     async applyTierBonuses(connection: PoolConnection, params: {
-        agentId: number;
+        technicianId: number;
         campaignId: number;
         startAt: Date;
         endAt: Date;
     }): Promise<void> {
-        const { agentId, campaignId, startAt, endAt } = params;
+        const { technicianId, campaignId, startAt, endAt } = params;
 
         const [soldRows] = await connection.query<RowDataPacket[]>(
             `SELECT COALESCE(SUM(qty), 0) AS sold_qty
-             FROM agent_commissions
-             WHERE agent_id = ?
+             FROM technician_commissions
+             WHERE technician_id = ?
                AND campaign_id = ?
                AND created_at BETWEEN ? AND ?`,
-            [agentId, campaignId, startAt, endAt]
+            [technicianId, campaignId, startAt, endAt]
         );
 
         const soldQty = toNumber(soldRows[0]?.sold_qty);
@@ -527,24 +528,24 @@ export const ReferralCommissionService = {
             }
 
             await connection.query(
-                `INSERT INTO agent_commission_bonuses
-                    (agent_id, campaign_id, threshold_qty, bonus_amount, status)
+                `INSERT INTO technician_commission_bonuses
+                    (technician_id, campaign_id, threshold_qty, bonus_amount, status)
                  VALUES (?, ?, ?, ?, 'pending')
                  ON DUPLICATE KEY UPDATE
-                    agent_id = agent_id`,
-                [agentId, campaignId, thresholdQty, toNumber(tier.bonus_amount)]
+                    technician_id = technician_id`,
+                [technicianId, campaignId, thresholdQty, toNumber(tier.bonus_amount)]
             );
         }
     },
 
-    async getCampaignProgressInternal(connection: PoolConnection, agentId: number, campaignId: number, campaign: Pick<CampaignRow, 'start_at' | 'end_at'>): Promise<any> {
+    async getCampaignProgressInternal(connection: PoolConnection, technicianId: number, campaignId: number, campaign: Pick<CampaignRow, 'start_at' | 'end_at'>): Promise<any> {
         const [soldRows] = await connection.query<RowDataPacket[]>(
             `SELECT COALESCE(SUM(qty), 0) AS sold_qty
-             FROM agent_commissions
-             WHERE agent_id = ?
+             FROM technician_commissions
+             WHERE technician_id = ?
                AND campaign_id = ?
                AND created_at BETWEEN ? AND ?`,
-            [agentId, campaignId, campaign.start_at, campaign.end_at]
+            [technicianId, campaignId, campaign.start_at, campaign.end_at]
         );
         const soldQty = toNumber(soldRows[0]?.sold_qty);
 
@@ -558,9 +559,9 @@ export const ReferralCommissionService = {
 
         const [bonusRows] = await connection.query<RowDataPacket[]>(
             `SELECT threshold_qty, bonus_amount
-             FROM agent_commission_bonuses
-             WHERE agent_id = ? AND campaign_id = ?`,
-            [agentId, campaignId]
+             FROM technician_commission_bonuses
+             WHERE technician_id = ? AND campaign_id = ?`,
+            [technicianId, campaignId]
         );
 
         const reachedThresholds = tierRows

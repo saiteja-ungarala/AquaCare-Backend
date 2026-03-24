@@ -42,6 +42,7 @@ export interface OrderDetailItem {
 
 export interface OrderDetail extends Order {
     updated_at?: Date;
+    referred_by_technician_id?: number | null;
     referred_by_agent_id?: number | null;
     referral_code_used?: string | null;
     address: {
@@ -166,7 +167,8 @@ export const OrderModel = {
             total_amount: Number(order.total_amount ?? 0),
             created_at: order.created_at,
             updated_at: order.updated_at ?? undefined,
-            referred_by_agent_id: order.referred_by_agent_id ?? null,
+            referred_by_technician_id: order.referred_by_technician_id ?? null,
+            referred_by_agent_id: order.referred_by_technician_id ?? null,
             referral_code_used: order.referral_code_used ?? null,
             address,
             items: itemRows as OrderDetailItem[],

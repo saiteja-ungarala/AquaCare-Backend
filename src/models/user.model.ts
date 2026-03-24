@@ -1,10 +1,11 @@
 import pool from '../config/db';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 import crypto from 'crypto';
+import { normalizeRoleValue } from '../utils/technician-domain';
 
 export interface User {
     id?: number;
-    role: 'customer' | 'agent' | 'dealer' | 'admin';
+    role: 'customer' | 'technician' | 'agent' | 'dealer' | 'admin';
     full_name: string;
     email: string;
     phone?: string;
@@ -31,7 +32,7 @@ export const UserModel = {
         const referralCode = user.referral_code || generateReferralCode();
         const [result] = await pool.query<ResultSetHeader>(
             `INSERT INTO users (role, full_name, email, phone, password_hash, referral_code, referred_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [user.role, user.full_name, user.email, user.phone, user.password_hash, referralCode, user.referred_by || null]
+            [normalizeRoleValue(user.role), user.full_name, user.email, user.phone, user.password_hash, referralCode, user.referred_by || null]
         );
         return result.insertId;
     },

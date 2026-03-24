@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizeRoleValue } from '../utils/technician-domain';
 
 // bcrypt silently truncates passwords longer than 72 bytes.
 // Rejecting passwords > 72 chars prevents a subtle auth bypass where two
@@ -27,13 +28,21 @@ const fullNameField = z
     .min(2, 'Full name must be at least 2 characters')
     .max(100, 'Full name must be 100 characters or fewer');
 
-const roleField = z.enum(['customer', 'agent', 'dealer'], {
-    errorMap: () => ({ message: 'Please select a valid role' }),
-});
+const normalizeRoleInput = (value: unknown) => (typeof value === 'string' ? normalizeRoleValue(value) : value);
 
-const loginRoleField = z.enum(['customer', 'agent', 'dealer', 'admin'], {
-    errorMap: () => ({ message: 'Please select a valid role' }),
-});
+const roleField = z.preprocess(
+    normalizeRoleInput,
+    z.enum(['customer', 'technician', 'dealer'], {
+        errorMap: () => ({ message: 'Please select a valid role' }),
+    })
+);
+
+const loginRoleField = z.preprocess(
+    normalizeRoleInput,
+    z.enum(['customer', 'technician', 'dealer', 'admin'], {
+        errorMap: () => ({ message: 'Please select a valid role' }),
+    })
+);
 
 const otpChannelField = z.enum(['email', 'sms', 'whatsapp']);
 const otpField = z.string().regex(/^\d{6}$/, 'OTP must be exactly 6 digits');

@@ -27,6 +27,7 @@ const createDiskUpload = (relativeFolder: string) => {
     });
 };
 
-export const kycUpload = createDiskUpload('agent-kyc');
+export const technicianKycUpload = createDiskUpload('technician-kyc');
+export const kycUpload = technicianKycUpload;
 export const dealerKycUpload = createDiskUpload('dealer-kyc');
 export const bannerUpload = createDiskUpload('banners');

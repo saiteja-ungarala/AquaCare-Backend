@@ -14,6 +14,7 @@ const auth_service_1 = require("../services/auth.service");
 const user_model_1 = require("../models/user.model");
 const wallet_model_1 = require("../models/wallet.model");
 const response_1 = require("../utils/response");
+const technician_domain_1 = require("../utils/technician-domain");
 const signup = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const result = yield auth_service_1.AuthService.signup(Object.assign(Object.assign({}, req.body), { password_hash: req.body.password }));
@@ -99,7 +100,7 @@ const me = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
             fullName: user.full_name,
             email: user.email,
             phone: user.phone || null,
-            role: user.role,
+            role: (0, technician_domain_1.normalizeRoleValue)(user.role),
             referralCode: user.referral_code || null,
         };
         return (0, response_1.successResponse)(res, { user: sanitizedUser });

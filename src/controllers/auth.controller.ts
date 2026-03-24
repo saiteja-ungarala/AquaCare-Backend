@@ -3,6 +3,7 @@ import { AuthService } from '../services/auth.service';
 import { UserModel } from '../models/user.model';
 import { WalletModel } from '../models/wallet.model';
 import { successResponse } from '../utils/response';
+import { normalizeRoleValue } from '../utils/technician-domain';
 
 export const signup = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -100,7 +101,7 @@ export const me = async (req: Request, res: Response, next: NextFunction) => {
             fullName: user.full_name,
             email: user.email,
             phone: user.phone || null,
-            role: user.role,
+            role: normalizeRoleValue(user.role),
             referralCode: (user as any).referral_code || null,
         };
 

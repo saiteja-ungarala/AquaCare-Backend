@@ -60,7 +60,7 @@ exports.OrderModel = {
     },
     findById(id) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
             const [orderRows] = yield db_1.default.query(`SELECT 
                 o.*,
                 a.id AS address_join_id,
@@ -111,8 +111,9 @@ exports.OrderModel = {
                 total_amount: Number((_m = order.total_amount) !== null && _m !== void 0 ? _m : 0),
                 created_at: order.created_at,
                 updated_at: (_o = order.updated_at) !== null && _o !== void 0 ? _o : undefined,
-                referred_by_agent_id: (_p = order.referred_by_agent_id) !== null && _p !== void 0 ? _p : null,
-                referral_code_used: (_q = order.referral_code_used) !== null && _q !== void 0 ? _q : null,
+                referred_by_technician_id: (_p = order.referred_by_technician_id) !== null && _p !== void 0 ? _p : null,
+                referred_by_agent_id: (_q = order.referred_by_technician_id) !== null && _q !== void 0 ? _q : null,
+                referral_code_used: (_r = order.referral_code_used) !== null && _r !== void 0 ? _r : null,
                 address,
                 items: itemRows,
             };

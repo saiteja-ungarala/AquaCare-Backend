@@ -16,11 +16,15 @@ router.get('/dashboard', AdminController.getDashboard);
 // KYC Stats (before parameterised routes)
 router.get('/kyc/stats', AdminController.getKycStats);
 
-// Agent KYC
-router.get('/kyc/agents',                         AdminController.listAgentKyc);
-router.get('/kyc/agents/:agentId',                AdminController.getAgentKycDetail);
-router.post('/kyc/agents/:agentId/approve',       AdminController.approveAgentKyc);
-router.post('/kyc/agents/:agentId/reject',        AdminController.rejectAgentKyc);
+// Technician KYC
+router.get('/kyc/technicians',                              AdminController.listTechnicianKyc);
+router.get('/kyc/technicians/:technicianId',                AdminController.getTechnicianKycDetail);
+router.post('/kyc/technicians/:technicianId/approve',       AdminController.approveTechnicianKyc);
+router.post('/kyc/technicians/:technicianId/reject',        AdminController.rejectTechnicianKyc);
+router.get('/kyc/agents',                                   AdminController.listAgentKyc);
+router.get('/kyc/agents/:agentId',                          AdminController.getAgentKycDetail);
+router.post('/kyc/agents/:agentId/approve',                 AdminController.approveAgentKyc);
+router.post('/kyc/agents/:agentId/reject',                  AdminController.rejectAgentKyc);
 
 // Dealer KYC
 router.get('/kyc/dealers',                        AdminController.listDealerKyc);

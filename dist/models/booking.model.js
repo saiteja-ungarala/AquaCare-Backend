@@ -37,15 +37,18 @@ exports.BookingModel = {
             const [countRows] = yield db_1.default.query(`SELECT COUNT(*) as total FROM bookings b ${where}`, values);
             const total = countRows[0].total;
             const query = `
-      SELECT b.id, b.user_id, b.service_id, b.agent_id, b.address_id, b.scheduled_date, b.scheduled_time,
+      SELECT b.id, b.user_id, b.service_id,
+             b.technician_id, b.technician_id AS agent_id,
+             b.address_id, b.scheduled_date, b.scheduled_time,
              b.status, b.price, b.notes, b.assigned_at, b.completed_at, b.created_at, b.updated_at,
              s.name as service_name, s.image_url as service_image, s.category as service_category, s.duration_minutes,
              a.line1 as address_line1, a.city as address_city, a.state as address_state, a.postal_code as address_postal_code,
-             ag.full_name as agent_name, ag.phone as agent_phone
+             t.full_name as technician_name, t.full_name as agent_name,
+             t.phone as technician_phone, t.phone as agent_phone
       FROM bookings b
       JOIN services s ON b.service_id = s.id
       LEFT JOIN addresses a ON b.address_id = a.id
-      LEFT JOIN users ag ON b.agent_id = ag.id
+      LEFT JOIN users t ON b.technician_id = t.id
       ${where}
       ORDER BY b.created_at DESC 
       LIMIT ? OFFSET ?
@@ -57,15 +60,18 @@ exports.BookingModel = {
     },
     findById(id) {
         return __awaiter(this, void 0, void 0, function* () {
-            const [rows] = yield db_1.default.query(`SELECT b.id, b.user_id, b.service_id, b.agent_id, b.address_id, b.scheduled_date, b.scheduled_time,
+            const [rows] = yield db_1.default.query(`SELECT b.id, b.user_id, b.service_id,
+                    b.technician_id, b.technician_id AS agent_id,
+                    b.address_id, b.scheduled_date, b.scheduled_time,
                     b.status, b.price, b.notes, b.assigned_at, b.completed_at, b.created_at, b.updated_at,
                     s.name as service_name, s.duration_minutes, s.image_url as service_image, s.category as service_category,
                     a.line1 as address_line1, a.city as address_city, a.state as address_state, a.postal_code as address_postal_code,
-                    ag.full_name as agent_name, ag.phone as agent_phone
+                    t.full_name as technician_name, t.full_name as agent_name,
+                    t.phone as technician_phone, t.phone as agent_phone
          FROM bookings b
          JOIN services s ON b.service_id = s.id
          LEFT JOIN addresses a ON b.address_id = a.id
-         LEFT JOIN users ag ON b.agent_id = ag.id
+         LEFT JOIN users t ON b.technician_id = t.id
          WHERE b.id = ?`, [id]);
             return rows[0] || null;
         });

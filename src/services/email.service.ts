@@ -208,14 +208,14 @@ export const EmailService = {
         );
     },
 
-    sendBookingAssigned(to: string, data: { bookingId: number; agentName: string }): void {
+    sendBookingAssigned(to: string, data: { bookingId: number; technicianName: string }): void {
         void sendEmail(
             {
                 to,
                 from: env.BREVO_FROM_EMAIL || env.FROM_EMAIL,
                 subject: `Technician Assigned - Booking #${data.bookingId}`,
-                text: `A technician has been assigned to your booking #${data.bookingId}.\n\nTechnician: ${data.agentName}\n\nThey will contact you shortly.`,
-                html: `<p>A technician has been assigned to your booking <strong>#${data.bookingId}</strong>.</p><p><strong>Technician:</strong> ${data.agentName}</p><p>They will contact you shortly.</p>`,
+                text: `A technician has been assigned to your booking #${data.bookingId}.\n\nTechnician: ${data.technicianName}\n\nThey will contact you shortly.`,
+                html: `<p>A technician has been assigned to your booking <strong>#${data.bookingId}</strong>.</p><p><strong>Technician:</strong> ${data.technicianName}</p><p>They will contact you shortly.</p>`,
             },
             { logLabel: 'booking assigned' }
         );

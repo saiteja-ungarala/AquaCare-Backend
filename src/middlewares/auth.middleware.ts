@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { errorResponse } from '../utils/response';
+import { rolesMatch } from '../utils/technician-domain';
 
 export const authenticate = (req: Request, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
@@ -26,7 +27,10 @@ export const authorize = (roles: string[]) => (req: Request, res: Response, next
         return errorResponse(res, 'Unauthorized', 401);
     }
 
-    if (!roles.includes((req.user as any).role)) {
+    const userRole = (req.user as any).role;
+    const isAuthorized = roles.some((role) => rolesMatch(userRole, role));
+
+    if (!isAuthorized) {
         return errorResponse(res, 'Forbidden: Insufficient permissions', 403);
     }
 
@@ -40,7 +44,7 @@ export const requireRole = (role: string) => {
         }
 
         const userRole = (req.user as any).role;
-        if (userRole !== role) {
+        if (!rolesMatch(userRole, role)) {
             return errorResponse(res, 'Forbidden: Insufficient permissions', 403);
         }
 
