@@ -105,7 +105,7 @@ export const listTechnicianKyc = async (req: Request, res: Response, next: NextF
 export const approveTechnicianKyc = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const adminId = (req.user as any).id;
-        const technicianId = Number(req.params.technicianId || req.params.agentId);
+        const technicianId = Number(req.params.technicianId);
         const review_notes = req.body.review_notes ?? req.body.notes;
 
         await pool.query(
@@ -130,7 +130,7 @@ export const approveTechnicianKyc = async (req: Request, res: Response, next: Ne
 export const rejectTechnicianKyc = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const adminId = (req.user as any).id;
-        const technicianId = Number(req.params.technicianId || req.params.agentId);
+        const technicianId = Number(req.params.technicianId);
         const review_notes = req.body.review_notes ?? req.body.notes;
 
         if (!review_notes || String(review_notes).trim() === '') {
@@ -229,7 +229,7 @@ export const rejectDealerKyc = async (req: Request, res: Response, next: NextFun
 
 export const getTechnicianKycDetail = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const technicianId = Number(req.params.technicianId || req.params.agentId);
+        const technicianId = Number(req.params.technicianId);
 
         const [userRows] = await pool.query<RowDataPacket[]>(
             `SELECT u.id, u.full_name, u.email, u.phone, u.role, u.is_active, u.created_at,
@@ -256,10 +256,38 @@ export const getTechnicianKycDetail = async (req: Request, res: Response, next: 
     } catch (error) { next(error); }
 };
 
-export const listAgentKyc = listTechnicianKyc;
-export const approveAgentKyc = approveTechnicianKyc;
-export const rejectAgentKyc = rejectTechnicianKyc;
-export const getAgentKycDetail = getTechnicianKycDetail;
+export const suspendTechnicianKyc = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const adminId = (req.user as any).id;
+        const technicianId = Number(req.params.technicianId);
+        const review_notes = req.body.review_notes ?? req.body.notes ?? req.body.reason;
+
+        if (!review_notes || String(review_notes).trim() === '') {
+            return errorResponse(res, 'review_notes is required when suspending', 400);
+        }
+
+        await pool.query(
+            `UPDATE technician_profiles SET verification_status = 'suspended' WHERE user_id = ?`,
+            [technicianId]
+        );
+        // Force offline when suspended
+        await pool.query(
+            `UPDATE technician_profiles SET is_online = 0 WHERE user_id = ?`,
+            [technicianId]
+        );
+        await pool.query(
+            `UPDATE technician_kyc_documents
+             SET status = 'rejected', review_notes = ?, reviewed_by = ?, reviewed_at = NOW()
+             WHERE technician_id = ? AND status = 'approved'`,
+            [review_notes, adminId, technicianId]
+        );
+
+        await logAdminAction(adminId, 'suspended_technician', 'technician', technicianId, { review_notes });
+        return successResponse(res, null, 'Technician suspended');
+    } catch (error) {
+        next(error);
+    }
+};
 
 export const getDealerKycDetail = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -305,15 +333,13 @@ export const getKycStats = async (req: Request, res: Response, next: NextFunctio
         ]);
 
         const toCounts = (rows: RowDataPacket[]) => {
-            const map: Record<string, number> = { pending: 0, approved: 0, rejected: 0, unverified: 0 };
+            const map: Record<string, number> = { pending: 0, approved: 0, rejected: 0, unverified: 0, suspended: 0 };
             for (const row of rows) map[row.status] = Number(row.cnt);
             return map;
         };
 
-        const technicians = toCounts(technicianRows);
         return successResponse(res, {
-            technicians,
-            agents: technicians,
+            technicians: toCounts(technicianRows),
             dealers: toCounts(dealerRows),
         });
     } catch (error) { next(error); }
@@ -432,10 +458,8 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
         return successResponse(res, {
             totalCustomers: cnt(0),
             totalTechnicians: cnt(1),
-            totalAgents: cnt(1),
             totalDealers: cnt(2),
             pendingTechnicianKyc: cnt(3),
-            pendingAgentKyc: cnt(3),
             pendingDealerKyc: cnt(4),
             totalBookings: cnt(5),
             todayBookings: cnt(6),
@@ -908,14 +932,13 @@ export const adminListBookings = async (req: Request, res: Response, next: NextF
         const page = Math.max(1, parseInt(req.query.page as string) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
         const offset = (page - 1) * limit;
-        const { status, date_from, date_to, agent_id, technician_id } = req.query;
+        const { status, date_from, date_to, technician_id } = req.query;
 
         const conditions: string[] = [];
         const params: any[] = [];
 
         if (status) { conditions.push('b.status = ?'); params.push(status); }
-        const technicianFilterId = technician_id || agent_id;
-        if (technicianFilterId) { conditions.push('b.technician_id = ?'); params.push(Number(technicianFilterId)); }
+        if (technician_id) { conditions.push('b.technician_id = ?'); params.push(Number(technician_id)); }
         if (date_from) { conditions.push('b.created_at >= ?'); params.push(date_from); }
         if (date_to) { conditions.push('b.created_at <= ?'); params.push(date_to); }
 
@@ -928,11 +951,9 @@ export const adminListBookings = async (req: Request, res: Response, next: NextF
 
         const [rows] = await pool.query<RowDataPacket[]>(
             `SELECT b.*,
-                    b.technician_id AS agent_id,
                     u.full_name  AS customer_name,  u.phone  AS customer_phone,
                     s.name       AS service_name,
                     a.full_name  AS technician_name,
-                    a.full_name  AS agent_name,
                     addr.line1   AS address_line1,  addr.city AS address_city
              FROM bookings b
              LEFT JOIN users    u    ON u.id    = b.user_id
@@ -946,13 +967,7 @@ export const adminListBookings = async (req: Request, res: Response, next: NextF
         );
 
         return successResponse(res, {
-            items: rows.map((row) => ({
-                ...row,
-                technician_id: row.technician_id,
-                agent_id: row.agent_id ?? row.technician_id,
-                technician_name: row.technician_name ?? row.agent_name ?? null,
-                agent_name: row.agent_name ?? row.technician_name ?? null,
-            })),
+            items: rows,
             pagination: { page, limit, totalItems: total, totalPages: Math.ceil(total / limit) },
         });
     } catch (error) { next(error); }
@@ -964,15 +979,11 @@ export const adminGetBookingDetail = async (req: Request, res: Response, next: N
 
         const [bookingRows] = await pool.query<RowDataPacket[]>(
             `SELECT b.*,
-                    b.technician_id AS agent_id,
                     cu.id         AS customer_id,   cu.full_name AS customer_name,
                     cu.phone      AS customer_phone, cu.email     AS customer_email,
                     au.id         AS technician_id_val,
-                    au.id         AS agent_id_val,
                     au.full_name  AS technician_name,
-                    au.full_name  AS agent_name,
                     au.phone      AS technician_phone,
-                    au.phone      AS agent_phone,
                     s.name        AS service_name,   s.category   AS service_category,
                     s.duration_minutes,              s.base_price AS service_base_price,
                     addr.line1, addr.line2, addr.city, addr.state,
@@ -996,9 +1007,7 @@ export const adminGetBookingDetail = async (req: Request, res: Response, next: N
             ),
             pool.query<RowDataPacket[]>(
                 `SELECT bu.*,
-                        bu.technician_id AS agent_id,
-                        u.full_name AS technician_name,
-                        u.full_name AS agent_name
+                        u.full_name AS technician_name
                  FROM booking_updates bu
                  LEFT JOIN users u ON u.id = bu.technician_id
                  WHERE bu.booking_id = ?
@@ -1009,8 +1018,6 @@ export const adminGetBookingDetail = async (req: Request, res: Response, next: N
 
         return successResponse(res, {
             ...bookingRows[0],
-            agent_id: bookingRows[0].agent_id ?? bookingRows[0].technician_id,
-            technician_id: bookingRows[0].technician_id,
             payment: paymentRows[0] ?? null,
             updates: updateRows,
         });
@@ -1037,7 +1044,6 @@ export const adminAssignBooking = async (req: Request, res: Response, next: Next
 
         await logAdminAction(adminId, 'assigned_booking', 'booking', id, {
             technician_id: technicianId,
-            agent_id: technicianId,
         });
         return successResponse(res, null, 'Booking assigned');
     } catch (error) { next(error); }

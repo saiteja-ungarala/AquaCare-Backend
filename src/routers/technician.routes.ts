@@ -27,6 +27,7 @@ router.get('/jobs/available', TechnicianController.getAvailableJobs);
 router.post('/jobs/:id/accept', TechnicianController.acceptJob);
 router.post('/jobs/:id/reject', TechnicianController.rejectJob);
 router.patch('/jobs/:id/status', validate(TechnicianJobStatusSchema), TechnicianController.patchJobStatus);
+router.get('/jobs/:bookingId/updates', TechnicianController.getJobUpdates);
 router.post('/jobs/:bookingId/updates', validate(TechnicianJobUpdateSchema), TechnicianController.postJobUpdate);
 router.get('/earn/referral', TechnicianController.getReferral);
 router.get('/earn/summary', TechnicianController.getEarningsSummary);

@@ -34,7 +34,6 @@ const mapOrderSummary = (order: any) => ({
     created_at: order.created_at,
     updated_at: order.updated_at ?? null,
     referred_by_technician_id: order.referred_by_technician_id ?? null,
-    referred_by_agent_id: order.referred_by_technician_id ?? null,
     referral_code_used: order.referral_code_used ?? null,
     item_count: Number(order.item_count ?? 0),
     first_item: order.first_product_name || order.first_product_image
@@ -59,7 +58,6 @@ const mapOrderDetail = (order: any) => ({
     created_at: order.created_at,
     updated_at: order.updated_at ?? null,
     referred_by_technician_id: order.referred_by_technician_id ?? null,
-    referred_by_agent_id: order.referred_by_technician_id ?? null,
     referral_code_used: order.referral_code_used ?? null,
     address: order.address,
     items: Array.isArray(order.items)
@@ -140,7 +138,7 @@ export const OrderService = {
         return { success: true, refunded, refund_amount: refundAmount };
     },
 
-    async checkout(userId: number, data: { address_id: number; payment_method: string; referral_code?: string }) {
+    async checkout(userId: number, data: { address_id: number; payment_method: string; referral_code?: string }, placedByRole: string = 'customer') {
         // 1. Validate Address
         const address = await AddressModel.findById(data.address_id);
         if (!address || address.user_id !== userId) throw { type: 'AppError', message: 'Invalid address', statusCode: 400 };
@@ -203,10 +201,10 @@ export const OrderService = {
 
             // Create Order
             const [orderResult] = await connection.query<any>(
-                `INSERT INTO orders (user_id, address_id, status, payment_status, subtotal, delivery_fee, total_amount, referred_by_technician_id, referral_code_used) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO orders (user_id, placed_by_role, address_id, status, payment_status, subtotal, delivery_fee, total_amount, referred_by_technician_id, referral_code_used)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    userId, data.address_id, ORDER_STATUS.PENDING,
+                    userId, placedByRole, data.address_id, ORDER_STATUS.PENDING,
                     data.payment_method === 'wallet' ? 'paid' : 'pending',
                     subtotal, deliveryFee, totalAmount, referredByTechnicianId, referralCodeUsed
                 ]
@@ -245,7 +243,6 @@ export const OrderService = {
                 status: 'pending',
                 paymentStatus: data.payment_method === 'wallet' ? 'paid' : 'pending',
                 referred_by_technician_id: referredByTechnicianId,
-                referred_by_agent_id: referredByTechnicianId,
                 referral_code_used: referralCodeUsed,
             };
 

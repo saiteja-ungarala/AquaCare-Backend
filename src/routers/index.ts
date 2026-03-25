@@ -25,7 +25,6 @@ router.use('/wallet', WalletRoutes);
 router.use('/user', ProfileRoutes);
 router.use('/store', StoreRoutes); // store commerce domain: categories + advanced product listing/detail
 router.use('/technician', TechnicianRoutes);
-router.use('/agent', TechnicianRoutes);
 router.use('/dealer', DealerRoutes);
 router.use('/payments', PaymentRoutes);
 router.use('/admin', AdminRoutes);

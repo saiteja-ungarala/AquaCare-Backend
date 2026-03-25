@@ -148,6 +148,17 @@ export const patchLocation = async (req: Request, res: Response, next: NextFunct
     }
 };
 
+export const getJobUpdates = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const technicianId = getTechnicianIdFromRequest(req);
+        const bookingId = Number(req.params.bookingId);
+        const result = await TechnicianService.getJobUpdates(technicianId, bookingId);
+        return successResponse(res, result);
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const postJobUpdate = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const technicianId = getTechnicianIdFromRequest(req);

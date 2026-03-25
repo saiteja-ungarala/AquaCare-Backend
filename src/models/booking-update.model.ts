@@ -5,7 +5,6 @@ export interface BookingUpdate {
     id: number;
     booking_id: number;
     technician_id: number;
-    agent_id?: number;
     update_type: 'arrived' | 'diagnosed' | 'in_progress' | 'completed' | 'photo' | 'note';
     note: string | null;
     media_url: string | null;
@@ -27,7 +26,6 @@ export const BookingUpdateModel = {
         const [rows] = await pool.query<RowDataPacket[]>(
             `SELECT id, booking_id,
                     technician_id,
-                    technician_id AS agent_id,
                     update_type, note, media_url, created_at
              FROM booking_updates
              WHERE booking_id = ?

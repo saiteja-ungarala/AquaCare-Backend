@@ -5,7 +5,7 @@ import { normalizeRoleValue } from '../utils/technician-domain';
 
 export interface User {
     id?: number;
-    role: 'customer' | 'technician' | 'agent' | 'dealer' | 'admin';
+    role: 'customer' | 'technician' | 'dealer' | 'admin';
     full_name: string;
     email: string;
     phone?: string;

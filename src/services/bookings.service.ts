@@ -118,7 +118,7 @@ export const BookingService = {
             throw { type: 'AppError', message: 'Booking not found', statusCode: 404 };
         }
 
-        const assignedTechnicianId = Number((booking as any).technician_id ?? (booking as any).agent_id);
+        const assignedTechnicianId = Number((booking as any).technician_id);
         if (Number(booking.user_id) !== userId && assignedTechnicianId !== userId) {
             throw { type: 'AppError', message: 'Forbidden', statusCode: 403 };
         }

@@ -45,6 +45,8 @@ export const TechnicianService = {
                 full_name: profile.full_name,
                 phone: profile.phone,
                 verification_status: profile.verification_status,
+                rejection_reason: profile.verification_status === 'rejected' ? (latestKyc?.review_notes ?? null) : null,
+                suspension_reason: profile.verification_status === 'suspended' ? (latestKyc?.review_notes ?? null) : null,
                 is_online: !!profile.is_online,
                 service_radius_km: Number(profile.service_radius_km || 0),
                 base_lat: profile.base_lat,
@@ -141,6 +143,14 @@ export const TechnicianService = {
 
         const myJobs = await TechnicianModel.getMyAssignedJobs(technicianId);
 
+        // Offline technicians only see their own active jobs — no new available jobs
+        if (!profile.is_online) {
+            return {
+                jobs: myJobs,
+                meta: { distance_filter_applied: false, note: 'Offline: only active jobs shown.' },
+            };
+        }
+
         if (profile.base_lat === null || profile.base_lng === null) {
             console.warn(`[TechnicianService] Technician ${technicianId} has no base coordinates. Returning available jobs without distance filter.`);
             const availableJobs = await TechnicianModel.getAvailableJobsWithoutDistance(technicianId);
@@ -185,7 +195,25 @@ export const TechnicianService = {
         };
     },
 
+    async getJobUpdates(technicianId: number, bookingId: number) {
+        const updates = await TechnicianModel.getJobUpdates(bookingId, technicianId);
+        return { updates };
+    },
+
     async acceptJob(technicianId: number, bookingId: number) {
+        // Pre-flight checks before acquiring the row lock
+        await TechnicianModel.ensureProfile(technicianId);
+        const techProfile = await TechnicianModel.getProfile(technicianId);
+        if (!techProfile) {
+            throw { type: 'AppError', message: 'Technician profile not found', statusCode: 404 };
+        }
+        if (!techProfile.is_online) {
+            throw { type: 'AppError', message: 'You must be online to accept jobs', statusCode: 400 };
+        }
+        if (await TechnicianModel.hasActiveJob(technicianId)) {
+            throw { type: 'AppError', message: 'Complete your current active job before accepting a new one', statusCode: 409 };
+        }
+
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
@@ -251,14 +279,13 @@ export const TechnicianService = {
                         technicianName,
                     });
                 }
-                NotificationService.sendToUser(customerUserId, 'Technician Assigned', `${technicianName} is on the way`, { type: 'agent_assigned', bookingId });
+                NotificationService.sendToUser(customerUserId, 'Technician Assigned', `${technicianName} is on the way`, { type: 'technician_assigned', bookingId });
             }).catch((err) => console.error('[TechnicianService] acceptJob notification error:', err));
 
             return {
                 booking_id: bookingId,
                 status: BOOKING_STATUS.ASSIGNED,
                 technician_id: technicianId,
-                agent_id: technicianId,
             };
         } catch (error) {
             await connection.rollback();
@@ -395,7 +422,6 @@ export const TechnicianService = {
             booking_id: bookingId,
             status,
             technician_id: technicianId,
-            agent_id: technicianId,
         };
     },
 };

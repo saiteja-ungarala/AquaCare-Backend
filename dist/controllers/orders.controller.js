@@ -36,9 +36,11 @@ const getOrderById = (req, res, next) => __awaiter(void 0, void 0, void 0, funct
 });
 exports.getOrderById = getOrderById;
 const checkout = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     try {
         const userId = req.user.id;
-        const result = yield orders_service_1.OrderService.checkout(userId, req.body);
+        const placedByRole = (_a = req.user.role) !== null && _a !== void 0 ? _a : 'customer';
+        const result = yield orders_service_1.OrderService.checkout(userId, req.body, placedByRole);
         return (0, response_1.successResponse)(res, result, 'Order placed successfully', 201);
     }
     catch (error) {

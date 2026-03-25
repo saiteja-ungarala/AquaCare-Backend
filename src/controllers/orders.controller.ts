@@ -26,7 +26,8 @@ export const getOrderById = async (req: Request, res: Response, next: NextFuncti
 export const checkout = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req.user as any).id;
-        const result = await OrderService.checkout(userId, req.body);
+        const placedByRole = (req.user as any).role ?? 'customer';
+        const result = await OrderService.checkout(userId, req.body, placedByRole);
         return successResponse(res, result, 'Order placed successfully', 201);
     } catch (error) {
         next(error);

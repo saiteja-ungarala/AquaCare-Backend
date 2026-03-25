@@ -21,10 +21,7 @@ router.get('/kyc/technicians',                              AdminController.list
 router.get('/kyc/technicians/:technicianId',                AdminController.getTechnicianKycDetail);
 router.post('/kyc/technicians/:technicianId/approve',       AdminController.approveTechnicianKyc);
 router.post('/kyc/technicians/:technicianId/reject',        AdminController.rejectTechnicianKyc);
-router.get('/kyc/agents',                                   AdminController.listAgentKyc);
-router.get('/kyc/agents/:agentId',                          AdminController.getAgentKycDetail);
-router.post('/kyc/agents/:agentId/approve',                 AdminController.approveAgentKyc);
-router.post('/kyc/agents/:agentId/reject',                  AdminController.rejectAgentKyc);
+router.patch('/kyc/technicians/:technicianId/suspend',      AdminController.suspendTechnicianKyc);
 
 // Dealer KYC
 router.get('/kyc/dealers',                        AdminController.listDealerKyc);

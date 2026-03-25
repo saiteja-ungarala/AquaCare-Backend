@@ -35,7 +35,7 @@ const mapOrderStatusBucket = (status) => {
     return 'active';
 };
 const mapOrderSummary = (order) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     return ({
         id: Number(order.id),
         user_id: Number(order.user_id),
@@ -50,19 +50,18 @@ const mapOrderSummary = (order) => {
         created_at: order.created_at,
         updated_at: (_f = order.updated_at) !== null && _f !== void 0 ? _f : null,
         referred_by_technician_id: (_g = order.referred_by_technician_id) !== null && _g !== void 0 ? _g : null,
-        referred_by_agent_id: (_h = order.referred_by_technician_id) !== null && _h !== void 0 ? _h : null,
-        referral_code_used: (_j = order.referral_code_used) !== null && _j !== void 0 ? _j : null,
-        item_count: Number((_k = order.item_count) !== null && _k !== void 0 ? _k : 0),
+        referral_code_used: (_h = order.referral_code_used) !== null && _h !== void 0 ? _h : null,
+        item_count: Number((_j = order.item_count) !== null && _j !== void 0 ? _j : 0),
         first_item: order.first_product_name || order.first_product_image
             ? {
-                product_name: (_l = order.first_product_name) !== null && _l !== void 0 ? _l : null,
-                image_url: (_m = order.first_product_image) !== null && _m !== void 0 ? _m : null,
+                product_name: (_k = order.first_product_name) !== null && _k !== void 0 ? _k : null,
+                image_url: (_l = order.first_product_image) !== null && _l !== void 0 ? _l : null,
             }
             : null,
     });
 };
 const mapOrderDetail = (order) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     return ({
         id: Number(order.id),
         user_id: Number(order.user_id),
@@ -77,8 +76,7 @@ const mapOrderDetail = (order) => {
         created_at: order.created_at,
         updated_at: (_f = order.updated_at) !== null && _f !== void 0 ? _f : null,
         referred_by_technician_id: (_g = order.referred_by_technician_id) !== null && _g !== void 0 ? _g : null,
-        referred_by_agent_id: (_h = order.referred_by_technician_id) !== null && _h !== void 0 ? _h : null,
-        referral_code_used: (_j = order.referral_code_used) !== null && _j !== void 0 ? _j : null,
+        referral_code_used: (_h = order.referral_code_used) !== null && _h !== void 0 ? _h : null,
         address: order.address,
         items: Array.isArray(order.items)
             ? order.items.map((item) => {
@@ -159,8 +157,8 @@ exports.OrderService = {
             return { success: true, refunded, refund_amount: refundAmount };
         });
     },
-    checkout(userId, data) {
-        return __awaiter(this, void 0, void 0, function* () {
+    checkout(userId_1, data_1) {
+        return __awaiter(this, arguments, void 0, function* (userId, data, placedByRole = 'customer') {
             // 1. Validate Address
             const address = yield address_model_1.AddressModel.findById(data.address_id);
             if (!address || address.user_id !== userId)
@@ -212,9 +210,9 @@ exports.OrderService = {
                     yield connection.query('UPDATE wallets SET balance = balance - ? WHERE user_id = ?', [totalAmount, userId]);
                 }
                 // Create Order
-                const [orderResult] = yield connection.query(`INSERT INTO orders (user_id, address_id, status, payment_status, subtotal, delivery_fee, total_amount, referred_by_technician_id, referral_code_used) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-                    userId, data.address_id, constants_1.ORDER_STATUS.PENDING,
+                const [orderResult] = yield connection.query(`INSERT INTO orders (user_id, placed_by_role, address_id, status, payment_status, subtotal, delivery_fee, total_amount, referred_by_technician_id, referral_code_used)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+                    userId, placedByRole, data.address_id, constants_1.ORDER_STATUS.PENDING,
                     data.payment_method === 'wallet' ? 'paid' : 'pending',
                     subtotal, deliveryFee, totalAmount, referredByTechnicianId, referralCodeUsed
                 ]);
@@ -240,7 +238,6 @@ exports.OrderService = {
                     status: 'pending',
                     paymentStatus: data.payment_method === 'wallet' ? 'paid' : 'pending',
                     referred_by_technician_id: referredByTechnicianId,
-                    referred_by_agent_id: referredByTechnicianId,
                     referral_code_used: referralCodeUsed,
                 };
             }

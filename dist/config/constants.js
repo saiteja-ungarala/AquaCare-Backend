@@ -4,7 +4,6 @@ exports.TXN_SOURCE = exports.TXN_TYPE = exports.CART_STATUS = exports.ORDER_STAT
 exports.ROLES = {
     CUSTOMER: 'customer',
     TECHNICIAN: 'technician',
-    AGENT: 'agent',
     DEALER: 'dealer',
     ADMIN: 'admin',
 };

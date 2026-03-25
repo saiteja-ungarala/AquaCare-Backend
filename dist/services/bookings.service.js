@@ -112,12 +112,11 @@ exports.BookingService = {
     },
     getBookingUpdates(userId, bookingId) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a;
             const booking = yield booking_model_1.BookingModel.findById(bookingId);
             if (!booking) {
                 throw { type: 'AppError', message: 'Booking not found', statusCode: 404 };
             }
-            const assignedTechnicianId = Number((_a = booking.technician_id) !== null && _a !== void 0 ? _a : booking.agent_id);
+            const assignedTechnicianId = Number(booking.technician_id);
             if (Number(booking.user_id) !== userId && assignedTechnicianId !== userId) {
                 throw { type: 'AppError', message: 'Forbidden', statusCode: 403 };
             }

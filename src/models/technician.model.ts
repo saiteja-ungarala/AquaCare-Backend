@@ -25,7 +25,7 @@ export const TechnicianModel = {
     async ensureProfile(userId: number): Promise<void> {
         await pool.query(
             `INSERT INTO technician_profiles (user_id, verification_status, is_online, service_radius_km)
-             VALUES (?, 'pending', 0, 10)
+             VALUES (?, 'unverified', 0, 10)
              ON DUPLICATE KEY UPDATE user_id = user_id`,
             [userId]
         );
@@ -98,7 +98,7 @@ export const TechnicianModel = {
 
     async getLatestKyc(userId: number): Promise<RowDataPacket | null> {
         const [rows] = await pool.query<RowDataPacket[]>(
-            `SELECT id, doc_type, file_url, status, review_notes, reviewed_by, reviewed_at
+            `SELECT id, doc_type, file_url, status, review_notes, reviewed_by, reviewed_at, created_at
              FROM technician_kyc_documents
              WHERE technician_id = ?
              ORDER BY id DESC
@@ -133,6 +133,27 @@ export const TechnicianModel = {
             `INSERT INTO technician_kyc_documents (technician_id, doc_type, file_url, status) VALUES ?`,
             [values]
         );
+    },
+
+    async hasActiveJob(technicianId: number): Promise<boolean> {
+        const [rows] = await pool.query<RowDataPacket[]>(
+            `SELECT COUNT(*) AS cnt
+             FROM bookings
+             WHERE technician_id = ? AND status IN ('assigned', 'in_progress')`,
+            [technicianId]
+        );
+        return Number(rows[0].cnt) > 0;
+    },
+
+    async getJobUpdates(bookingId: number, technicianId: number): Promise<RowDataPacket[]> {
+        const [rows] = await pool.query<RowDataPacket[]>(
+            `SELECT id, update_type, note, media_url, created_at
+             FROM booking_updates
+             WHERE booking_id = ? AND technician_id = ?
+             ORDER BY created_at ASC, id ASC`,
+            [bookingId, technicianId]
+        );
+        return rows;
     },
 
     async setVerificationStatus(userId: number, status: string): Promise<void> {

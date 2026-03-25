@@ -28,7 +28,6 @@ router.use('/wallet', wallet_routes_1.default);
 router.use('/user', profile_routes_1.default);
 router.use('/store', store_routes_1.default); // store commerce domain: categories + advanced product listing/detail
 router.use('/technician', technician_routes_1.default);
-router.use('/agent', technician_routes_1.default);
 router.use('/dealer', dealer_routes_1.default);
 router.use('/payments', payment_routes_1.default);
 router.use('/admin', admin_routes_1.default);
