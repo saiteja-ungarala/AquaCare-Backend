@@ -73,11 +73,12 @@ export const BookingService = {
             );
             const hasFree = benefits.length > 0;
             const finalPrice = hasFree ? 0 : service.base_price;
-            const initialStatus = finalPrice === 0 ? BOOKING_STATUS.CONFIRMED : BOOKING_STATUS.PENDING;
+            // COD: all bookings start as confirmed regardless of price — payment collected after service
+            const initialStatus = BOOKING_STATUS.CONFIRMED;
 
             const [result] = await conn.execute<ResultSetHeader>(
-                `INSERT INTO bookings (user_id, service_id, address_id, scheduled_date, scheduled_time, status, price, notes)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO bookings (user_id, service_id, address_id, scheduled_date, scheduled_time, status, price, notes, payment_method, payment_status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'cod', 'pending')`,
                 [
                     userId, data.service_id, data.address_id || null,
                     data.scheduled_date, data.scheduled_time,
@@ -128,10 +129,8 @@ export const BookingService = {
             }
             NotificationService.sendToUser(
                 userId,
-                shouldDispatchImmediately ? 'Booking Confirmed' : 'Booking Created',
-                shouldDispatchImmediately
-                    ? 'Finding your technician...'
-                    : 'Complete payment to confirm and dispatch your technician.',
+                'Booking Confirmed',
+                'Finding your technician...',
                 { type: 'booking_created', bookingId }
             );
         }).catch((err) => console.error('[BookingService] notification error:', err));

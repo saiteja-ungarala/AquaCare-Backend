@@ -1,7 +1,9 @@
 export const TECHNICIAN_ROLE = 'technician' as const;
+const LEGACY_AGENT_ROLE = 'agent' as const;
 
 export const normalizeRoleValue = (role?: string | null): string => {
-    return String(role || '').trim().toLowerCase();
+    const normalized = String(role || '').trim().toLowerCase();
+    return normalized === LEGACY_AGENT_ROLE ? TECHNICIAN_ROLE : normalized;
 };
 
 export const isTechnicianRole = (role?: string | null): boolean => {

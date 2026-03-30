@@ -79,9 +79,10 @@ exports.BookingService = {
                  FOR UPDATE`, [userId]);
                 const hasFree = benefits.length > 0;
                 const finalPrice = hasFree ? 0 : service.base_price;
-                const initialStatus = finalPrice === 0 ? constants_1.BOOKING_STATUS.CONFIRMED : constants_1.BOOKING_STATUS.PENDING;
-                const [result] = yield conn.execute(`INSERT INTO bookings (user_id, service_id, address_id, scheduled_date, scheduled_time, status, price, notes)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [
+                // COD: all bookings start as confirmed regardless of price — payment collected after service
+                const initialStatus = constants_1.BOOKING_STATUS.CONFIRMED;
+                const [result] = yield conn.execute(`INSERT INTO bookings (user_id, service_id, address_id, scheduled_date, scheduled_time, status, price, notes, payment_method, payment_status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'cod', 'pending')`, [
                     userId, data.service_id, data.address_id || null,
                     data.scheduled_date, data.scheduled_time,
                     initialStatus, finalPrice, data.notes || null,
@@ -120,9 +121,7 @@ exports.BookingService = {
                         address,
                     });
                 }
-                notification_service_1.NotificationService.sendToUser(userId, shouldDispatchImmediately ? 'Booking Confirmed' : 'Booking Created', shouldDispatchImmediately
-                    ? 'Finding your technician...'
-                    : 'Complete payment to confirm and dispatch your technician.', { type: 'booking_created', bookingId });
+                notification_service_1.NotificationService.sendToUser(userId, 'Booking Confirmed', 'Finding your technician...', { type: 'booking_created', bookingId });
             }).catch((err) => console.error('[BookingService] notification error:', err));
             return booking;
         });
