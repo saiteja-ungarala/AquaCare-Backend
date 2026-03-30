@@ -28,6 +28,10 @@ const VALID_TECHNICIAN_TRANSITIONS: Record<string, string> = {
     [BOOKING_STATUS.IN_PROGRESS]: BOOKING_STATUS.COMPLETED,
 };
 
+const isMissingBookingOffersTableError = (error: any): boolean =>
+    error?.code === 'ER_NO_SUCH_TABLE'
+    && String(error?.sqlMessage || error?.message || '').includes('booking_offers');
+
 export const TechnicianService = {
     async getMe(technicianId: number) {
         await TechnicianModel.ensureProfile(technicianId);
@@ -255,24 +259,30 @@ export const TechnicianService = {
                 throw { type: 'AppError', message: 'Booking is not available for acceptance', statusCode: 400 };
             }
 
-            const [offerRows] = await connection.query<any[]>(
-                `SELECT id FROM booking_offers WHERE booking_id = ? AND technician_id = ? FOR UPDATE`,
-                [bookingId, technicianId]
-            );
-
-            if (offerRows.length > 0) {
-                await connection.query(
-                    `UPDATE booking_offers
-                     SET status = 'accepted', responded_at = NOW()
-                     WHERE id = ?`,
-                    [offerRows[0].id]
-                );
-            } else {
-                await connection.query(
-                    `INSERT INTO booking_offers (booking_id, technician_id, status, offered_at, responded_at)
-                     VALUES (?, ?, 'accepted', NOW(), NOW())`,
+            try {
+                const [offerRows] = await connection.query<any[]>(
+                    `SELECT id FROM booking_offers WHERE booking_id = ? AND technician_id = ? FOR UPDATE`,
                     [bookingId, technicianId]
                 );
+
+                if (offerRows.length > 0) {
+                    await connection.query(
+                        `UPDATE booking_offers
+                         SET status = 'accepted', responded_at = NOW()
+                         WHERE id = ?`,
+                        [offerRows[0].id]
+                    );
+                } else {
+                    await connection.query(
+                        `INSERT INTO booking_offers (booking_id, technician_id, status, offered_at, responded_at)
+                         VALUES (?, ?, 'accepted', NOW(), NOW())`,
+                        [bookingId, technicianId]
+                    );
+                }
+            } catch (error: any) {
+                if (!isMissingBookingOffersTableError(error)) {
+                    throw error;
+                }
             }
 
             await connection.query(
@@ -321,24 +331,30 @@ export const TechnicianService = {
             throw { type: 'AppError', message: 'Booking not found', statusCode: 404 };
         }
 
-        const [offerRows] = await pool.query<any[]>(
-            `SELECT id FROM booking_offers WHERE booking_id = ? AND technician_id = ?`,
-            [bookingId, technicianId]
-        );
-
-        if (offerRows.length > 0) {
-            await pool.query(
-                `UPDATE booking_offers
-                 SET status = 'rejected', responded_at = NOW()
-                 WHERE id = ?`,
-                [offerRows[0].id]
-            );
-        } else {
-            await pool.query(
-                `INSERT INTO booking_offers (booking_id, technician_id, status, offered_at, responded_at)
-                 VALUES (?, ?, 'rejected', NOW(), NOW())`,
+        try {
+            const [offerRows] = await pool.query<any[]>(
+                `SELECT id FROM booking_offers WHERE booking_id = ? AND technician_id = ?`,
                 [bookingId, technicianId]
             );
+
+            if (offerRows.length > 0) {
+                await pool.query(
+                    `UPDATE booking_offers
+                     SET status = 'rejected', responded_at = NOW()
+                     WHERE id = ?`,
+                    [offerRows[0].id]
+                );
+            } else {
+                await pool.query(
+                    `INSERT INTO booking_offers (booking_id, technician_id, status, offered_at, responded_at)
+                     VALUES (?, ?, 'rejected', NOW(), NOW())`,
+                    [bookingId, technicianId]
+                );
+            }
+        } catch (error: any) {
+            if (!isMissingBookingOffersTableError(error)) {
+                throw error;
+            }
         }
 
         return { booking_id: bookingId, status: 'rejected' };

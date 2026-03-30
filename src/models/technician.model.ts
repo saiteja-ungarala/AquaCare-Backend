@@ -21,6 +21,10 @@ export interface KycDocumentInput {
     file_url: string;
 }
 
+const isMissingBookingOffersTableError = (error: any): boolean =>
+    error?.code === 'ER_NO_SUCH_TABLE'
+    && String(error?.sqlMessage || error?.message || '').includes('booking_offers');
+
 export const TechnicianModel = {
     async ensureProfile(userId: number): Promise<void> {
         await pool.query(
@@ -187,108 +191,209 @@ export const TechnicianModel = {
             ))
         `;
 
-        const [rows] = await pool.query<RowDataPacket[]>(
-            `SELECT
-                b.id,
-                b.user_id,
-                b.service_id,
-                b.address_id,
-                b.scheduled_date,
-                b.scheduled_time,
-                ADDTIME(b.scheduled_time, SEC_TO_TIME(COALESCE(s.duration_minutes, 60) * 60)) AS time_slot_end,
-                b.status,
-                b.price,
-                b.notes,
-                b.created_at,
-                s.name AS service_name,
-                s.image_url AS service_image,
-                s.category AS service_category,
-                s.duration_minutes,
-                a.line1 AS address_line1,
-                a.line2 AS address_line2,
-                a.city AS address_city,
-                a.state AS address_state,
-                a.postal_code AS address_postal_code,
-                a.latitude AS address_latitude,
-                a.longitude AS address_longitude,
-                u.full_name AS customer_name,
-                u.phone AS customer_phone,
-                ROUND(${distanceExpr}, 2) AS distance_km
-             FROM bookings b
-             JOIN services s ON s.id = b.service_id
-             LEFT JOIN addresses a ON a.id = b.address_id
-             JOIN users u ON u.id = b.user_id
-             LEFT JOIN booking_offers bo_rejected
-                ON bo_rejected.booking_id = b.id
-               AND bo_rejected.technician_id = ?
-               AND bo_rejected.status = 'rejected'
-             WHERE b.technician_id IS NULL
-               AND b.status = ?
-               AND bo_rejected.id IS NULL
-               AND a.latitude IS NOT NULL
-               AND a.longitude IS NOT NULL
-             HAVING distance_km <= ?
-             ORDER BY b.created_at ASC`,
-            [
-                baseLat,
-                baseLng,
-                baseLat,
-                technicianId,
-                BOOKING_STATUS.CONFIRMED,
-                radiusKm,
-            ]
-        );
+        try {
+            const [rows] = await pool.query<RowDataPacket[]>(
+                `SELECT
+                    b.id,
+                    b.user_id,
+                    b.service_id,
+                    b.address_id,
+                    b.scheduled_date,
+                    b.scheduled_time,
+                    ADDTIME(b.scheduled_time, SEC_TO_TIME(COALESCE(s.duration_minutes, 60) * 60)) AS time_slot_end,
+                    b.status,
+                    b.price,
+                    b.notes,
+                    b.created_at,
+                    s.name AS service_name,
+                    s.image_url AS service_image,
+                    s.category AS service_category,
+                    s.duration_minutes,
+                    a.line1 AS address_line1,
+                    a.line2 AS address_line2,
+                    a.city AS address_city,
+                    a.state AS address_state,
+                    a.postal_code AS address_postal_code,
+                    a.latitude AS address_latitude,
+                    a.longitude AS address_longitude,
+                    u.full_name AS customer_name,
+                    u.phone AS customer_phone,
+                    ROUND(${distanceExpr}, 2) AS distance_km
+                 FROM bookings b
+                 JOIN services s ON s.id = b.service_id
+                 LEFT JOIN addresses a ON a.id = b.address_id
+                 JOIN users u ON u.id = b.user_id
+                 LEFT JOIN booking_offers bo_rejected
+                    ON bo_rejected.booking_id = b.id
+                   AND bo_rejected.technician_id = ?
+                   AND bo_rejected.status = 'rejected'
+                 WHERE b.technician_id IS NULL
+                   AND b.status = ?
+                   AND bo_rejected.id IS NULL
+                   AND a.latitude IS NOT NULL
+                   AND a.longitude IS NOT NULL
+                 HAVING distance_km <= ?
+                 ORDER BY b.created_at ASC`,
+                [
+                    baseLat,
+                    baseLng,
+                    baseLat,
+                    technicianId,
+                    BOOKING_STATUS.CONFIRMED,
+                    radiusKm,
+                ]
+            );
 
-        return rows;
+            return rows;
+        } catch (error: any) {
+            if (!isMissingBookingOffersTableError(error)) {
+                throw error;
+            }
+
+            const [rows] = await pool.query<RowDataPacket[]>(
+                `SELECT
+                    b.id,
+                    b.user_id,
+                    b.service_id,
+                    b.address_id,
+                    b.scheduled_date,
+                    b.scheduled_time,
+                    ADDTIME(b.scheduled_time, SEC_TO_TIME(COALESCE(s.duration_minutes, 60) * 60)) AS time_slot_end,
+                    b.status,
+                    b.price,
+                    b.notes,
+                    b.created_at,
+                    s.name AS service_name,
+                    s.image_url AS service_image,
+                    s.category AS service_category,
+                    s.duration_minutes,
+                    a.line1 AS address_line1,
+                    a.line2 AS address_line2,
+                    a.city AS address_city,
+                    a.state AS address_state,
+                    a.postal_code AS address_postal_code,
+                    a.latitude AS address_latitude,
+                    a.longitude AS address_longitude,
+                    u.full_name AS customer_name,
+                    u.phone AS customer_phone,
+                    ROUND(${distanceExpr}, 2) AS distance_km
+                 FROM bookings b
+                 JOIN services s ON s.id = b.service_id
+                 LEFT JOIN addresses a ON a.id = b.address_id
+                 JOIN users u ON u.id = b.user_id
+                 WHERE b.technician_id IS NULL
+                   AND b.status = ?
+                   AND a.latitude IS NOT NULL
+                   AND a.longitude IS NOT NULL
+                 HAVING distance_km <= ?
+                 ORDER BY b.created_at ASC`,
+                [
+                    baseLat,
+                    baseLng,
+                    baseLat,
+                    BOOKING_STATUS.CONFIRMED,
+                    radiusKm,
+                ]
+            );
+
+            return rows;
+        }
     },
 
     async getAvailableJobsWithoutDistance(technicianId: number): Promise<RowDataPacket[]> {
-        const [rows] = await pool.query<RowDataPacket[]>(
-            `SELECT
-                b.id,
-                b.user_id,
-                b.service_id,
-                b.address_id,
-                b.scheduled_date,
-                b.scheduled_time,
-                ADDTIME(b.scheduled_time, SEC_TO_TIME(COALESCE(s.duration_minutes, 60) * 60)) AS time_slot_end,
-                b.status,
-                b.price,
-                b.notes,
-                b.created_at,
-                s.name AS service_name,
-                s.image_url AS service_image,
-                s.category AS service_category,
-                s.duration_minutes,
-                a.line1 AS address_line1,
-                a.line2 AS address_line2,
-                a.city AS address_city,
-                a.state AS address_state,
-                a.postal_code AS address_postal_code,
-                a.latitude AS address_latitude,
-                a.longitude AS address_longitude,
-                u.full_name AS customer_name,
-                u.phone AS customer_phone,
-                NULL AS distance_km
-             FROM bookings b
-             JOIN services s ON s.id = b.service_id
-             LEFT JOIN addresses a ON a.id = b.address_id
-             JOIN users u ON u.id = b.user_id
-             LEFT JOIN booking_offers bo_rejected
-                ON bo_rejected.booking_id = b.id
-               AND bo_rejected.technician_id = ?
-               AND bo_rejected.status = 'rejected'
-             WHERE b.technician_id IS NULL
-               AND b.status = ?
-               AND bo_rejected.id IS NULL
-             ORDER BY b.created_at ASC`,
-            [
-                technicianId,
-                BOOKING_STATUS.CONFIRMED,
-            ]
-        );
+        try {
+            const [rows] = await pool.query<RowDataPacket[]>(
+                `SELECT
+                    b.id,
+                    b.user_id,
+                    b.service_id,
+                    b.address_id,
+                    b.scheduled_date,
+                    b.scheduled_time,
+                    ADDTIME(b.scheduled_time, SEC_TO_TIME(COALESCE(s.duration_minutes, 60) * 60)) AS time_slot_end,
+                    b.status,
+                    b.price,
+                    b.notes,
+                    b.created_at,
+                    s.name AS service_name,
+                    s.image_url AS service_image,
+                    s.category AS service_category,
+                    s.duration_minutes,
+                    a.line1 AS address_line1,
+                    a.line2 AS address_line2,
+                    a.city AS address_city,
+                    a.state AS address_state,
+                    a.postal_code AS address_postal_code,
+                    a.latitude AS address_latitude,
+                    a.longitude AS address_longitude,
+                    u.full_name AS customer_name,
+                    u.phone AS customer_phone,
+                    NULL AS distance_km
+                 FROM bookings b
+                 JOIN services s ON s.id = b.service_id
+                 LEFT JOIN addresses a ON a.id = b.address_id
+                 JOIN users u ON u.id = b.user_id
+                 LEFT JOIN booking_offers bo_rejected
+                    ON bo_rejected.booking_id = b.id
+                   AND bo_rejected.technician_id = ?
+                   AND bo_rejected.status = 'rejected'
+                 WHERE b.technician_id IS NULL
+                   AND b.status = ?
+                   AND bo_rejected.id IS NULL
+                 ORDER BY b.created_at ASC`,
+                [
+                    technicianId,
+                    BOOKING_STATUS.CONFIRMED,
+                ]
+            );
 
-        return rows;
+            return rows;
+        } catch (error: any) {
+            if (!isMissingBookingOffersTableError(error)) {
+                throw error;
+            }
+
+            const [rows] = await pool.query<RowDataPacket[]>(
+                `SELECT
+                    b.id,
+                    b.user_id,
+                    b.service_id,
+                    b.address_id,
+                    b.scheduled_date,
+                    b.scheduled_time,
+                    ADDTIME(b.scheduled_time, SEC_TO_TIME(COALESCE(s.duration_minutes, 60) * 60)) AS time_slot_end,
+                    b.status,
+                    b.price,
+                    b.notes,
+                    b.created_at,
+                    s.name AS service_name,
+                    s.image_url AS service_image,
+                    s.category AS service_category,
+                    s.duration_minutes,
+                    a.line1 AS address_line1,
+                    a.line2 AS address_line2,
+                    a.city AS address_city,
+                    a.state AS address_state,
+                    a.postal_code AS address_postal_code,
+                    a.latitude AS address_latitude,
+                    a.longitude AS address_longitude,
+                    u.full_name AS customer_name,
+                    u.phone AS customer_phone,
+                    NULL AS distance_km
+                 FROM bookings b
+                 JOIN services s ON s.id = b.service_id
+                 LEFT JOIN addresses a ON a.id = b.address_id
+                 JOIN users u ON u.id = b.user_id
+                 WHERE b.technician_id IS NULL
+                   AND b.status = ?
+                 ORDER BY b.created_at ASC`,
+                [
+                    BOOKING_STATUS.CONFIRMED,
+                ]
+            );
+
+            return rows;
+        }
     },
 
     async getMyAssignedJobs(technicianId: number): Promise<RowDataPacket[]> {
