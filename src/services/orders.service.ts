@@ -5,6 +5,7 @@ import { AddressModel } from '../models/address.model';
 import { WalletModel } from '../models/wallet.model';
 import { ORDER_STATUS } from '../config/constants';
 import { ReferralCommissionService } from './referralCommission.service';
+import { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 const ACTIVE_ORDER_STATUSES = new Set(['pending', 'confirmed', 'paid', 'processing', 'packed', 'shipped']);
 const DELIVERED_ORDER_STATUSES = new Set(['delivered', 'completed']);
@@ -159,7 +160,6 @@ export const OrderService = {
         const orderItems: OrderItem[] = [];
 
         for (const item of productItems) {
-            // Here we should strictly check stock in a real app
             subtotal += Number(item.product_price) * item.qty;
             orderItems.push({
                 order_id: 0, // placeholder
@@ -181,6 +181,32 @@ export const OrderService = {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
+
+            // Stock check + atomic decrement — runs inside the transaction so any
+            // failure below automatically restores the decremented quantities.
+            for (const item of orderItems) {
+                const [stockResult] = await connection.query<ResultSetHeader>(
+                    `UPDATE products SET stock_qty = stock_qty - ?
+                     WHERE id = ? AND stock_qty >= ? AND is_active = 1`,
+                    [item.qty, item.product_id, item.qty]
+                );
+                if (stockResult.affectedRows === 0) {
+                    const [pRows] = await connection.query<RowDataPacket[]>(
+                        `SELECT name, stock_qty FROM products WHERE id = ?`,
+                        [item.product_id]
+                    );
+                    const productName = pRows[0]?.name || `Product #${item.product_id}`;
+                    const available = Number(pRows[0]?.stock_qty ?? 0);
+                    throw {
+                        type: 'AppError',
+                        message: available > 0
+                            ? `"${productName}" only has ${available} unit(s) in stock`
+                            : `"${productName}" is out of stock`,
+                        statusCode: 400,
+                    };
+                }
+            }
+
             const referredByTechnicianId = await ReferralCommissionService.findTechnicianIdByReferralCode(connection, validReferralCode);
             const referralCodeUsed = referredByTechnicianId ? validReferralCode : null;
 

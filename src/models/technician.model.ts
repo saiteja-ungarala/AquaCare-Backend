@@ -429,13 +429,12 @@ export const TechnicianModel = {
              LEFT JOIN addresses a ON a.id = b.address_id
              JOIN users u ON u.id = b.user_id
              WHERE b.technician_id = ?
-               AND b.status IN (?, ?, ?)
+               AND b.status IN (?, ?)
              ORDER BY b.created_at DESC`,
             [
                 technicianId,
                 BOOKING_STATUS.ASSIGNED,
                 BOOKING_STATUS.IN_PROGRESS,
-                BOOKING_STATUS.COMPLETED,
             ]
         );
 

@@ -6,7 +6,7 @@ export const getBookings = async (req: Request, res: Response, next: NextFunctio
     try {
         const userId = (req.user as any).id;
         const result = await BookingService.getBookings(userId, req.query);
-        return successResponse(res, result.data); 
+        return successResponse(res, result);
     } catch (error) {
         next(error);
     }

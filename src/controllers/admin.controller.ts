@@ -500,6 +500,12 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
                  ORDER BY al.created_at DESC
                  LIMIT 20`
             ),
+            pool.query<RowDataPacket[]>(
+                `SELECT COUNT(*) AS cnt FROM bookings
+                 WHERE status = 'confirmed'
+                   AND technician_id IS NULL
+                   AND created_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)`
+            ),
         ]);
 
         const cnt = (idx: number): number => Number(results[idx][0][0]?.cnt ?? 0);
@@ -522,6 +528,7 @@ export const getDashboard = async (req: Request, res: Response, next: NextFuncti
             activeServices: cnt(13),
             activeBanners: cnt(14),
             recentActivity: results[15][0],
+            stuckBookings: cnt(16),
         });
     } catch (error) {
         next(error);
@@ -982,7 +989,7 @@ export const adminListBookings = async (req: Request, res: Response, next: NextF
         const page = Math.max(1, parseInt(req.query.page as string) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
         const offset = (page - 1) * limit;
-        const { status, date_from, date_to, technician_id } = req.query;
+        const { status, date_from, date_to, technician_id, unassigned } = req.query;
 
         const conditions: string[] = [];
         const params: any[] = [];
@@ -991,6 +998,9 @@ export const adminListBookings = async (req: Request, res: Response, next: NextF
         if (technician_id) { conditions.push('b.technician_id = ?'); params.push(Number(technician_id)); }
         if (date_from) { conditions.push('b.created_at >= ?'); params.push(date_from); }
         if (date_to) { conditions.push('b.created_at <= ?'); params.push(date_to); }
+        if (unassigned === 'true') {
+            conditions.push("b.technician_id IS NULL AND b.status = 'confirmed' AND b.created_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)");
+        }
 
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -1216,6 +1226,7 @@ export const adminCancelBooking = async (req: Request, res: Response, next: Next
 // ─── Orders (Admin) ───────────────────────────────────────────────────────────
 
 const ORDER_TRANSITIONS: Record<string, string[]> = {
+    'pending': ['paid', 'packed', 'cancelled'],
     'paid': ['packed', 'cancelled'],
     'packed': ['shipped', 'cancelled'],
     'shipped': ['delivered'],
@@ -1329,6 +1340,15 @@ export const adminUpdateOrderStatus = async (req: Request, res: Response, next: 
         }
 
         await pool.query(`UPDATE orders SET status = ? WHERE id = ?`, [newStatus, id]);
+
+        if (newStatus === 'delivered') {
+            await pool.query(
+                `UPDATE orders SET payment_status = 'paid', payment_verified_at = NOW()
+                 WHERE id = ? AND payment_status = 'pending'`,
+                [id]
+            );
+        }
+
         await logAdminAction(adminId, 'updated_order_status', 'order', id, { from: currentStatus, to: newStatus });
         return successResponse(res, { status: newStatus }, 'Order status updated');
     } catch (error) { next(error); }

@@ -456,7 +456,7 @@ export const TechnicianService = {
             // Early-start guard: technician cannot begin a job more than
             // SCHEDULE_EARLY_START_BUFFER_MINUTES before the scheduled time.
             if (status === BOOKING_STATUS.IN_PROGRESS && booking.scheduled_date && booking.scheduled_time) {
-                const scheduledAt = new Date(`${booking.scheduled_date}T${booking.scheduled_time}`);
+                const scheduledAt = new Date(`${booking.scheduled_date}T${booking.scheduled_time}+05:30`);
                 if (!Number.isNaN(scheduledAt.getTime())) {
                     const earliestStart = new Date(scheduledAt.getTime() - SCHEDULE_EARLY_START_BUFFER_MINUTES * 60_000);
                     if (Date.now() < earliestStart.getTime()) {
